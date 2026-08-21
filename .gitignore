@@ -12,6 +12,11 @@
 *.out
 coverage.out
 coverage.html
+coverage.xml
+htmlcov/
+
+# Test result artifacts (CI-generated)
+test-results.json
 
 # Go workspace
 go.work

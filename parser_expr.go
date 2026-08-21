@@ -53,8 +53,17 @@ func (p *Parser) parseExpr() Expression {
 
 // parseExprPrec parses an expression whose top-level operator has binding
 // power at least minPrec. This is textbook precedence climbing.
+//
+// Nil propagation: if parseUnary or a recursive parseExprPrec returns nil
+// (parsePrefixExp on invalid input records an error and returns nil), we
+// propagate that nil upward rather than wrapping in a BinaryExpr with a
+// nil operand. Downstream tools that call Left.Pos() or type-assert on
+// Left/Right must never see nil operands in a well-formed AST.
 func (p *Parser) parseExprPrec(minPrec int) Expression {
 	left := p.parseUnary()
+	if left == nil {
+		return nil
+	}
 	for {
 		op, ok := binaryOps[p.tok.Kind]
 		if !ok || op.prec < minPrec {
@@ -67,6 +76,9 @@ func (p *Parser) parseExprPrec(minPrec int) Expression {
 			nextMin = op.prec
 		}
 		right := p.parseExprPrec(nextMin)
+		if right == nil {
+			return left
+		}
 		left = &BinaryExpr{Position: pos, Op: op.op, Left: left, Right: right}
 	}
 }

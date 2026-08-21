@@ -5,6 +5,11 @@
 # The coverage targets mirror .github/workflows/badge.yaml (LCOV via
 # gcov2lcov + lcov/genhtml).
 
+# Force bash so recipes can use `set -o pipefail` and `[[ ... ]]`. Make's
+# default is /bin/sh, which on Ubuntu is dash and rejects these features —
+# CI would fail with "Illegal option -o pipefail" otherwise.
+SHELL := /bin/bash
+
 GO             ?= go
 GOLANGCI_LINT  ?= golangci-lint
 GCOV2LCOV      ?= gcov2lcov

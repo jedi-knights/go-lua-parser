@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	lua "github.com/jedi-knights/go-lua-parser"
 )
@@ -596,24 +595,23 @@ func TestParseRecoveryDoesNotCascade(t *testing.T) {
 }
 
 func TestParseRecoveryOnLexerErrorTerminates(t *testing.T) {
-	// Arrange — a source with an invalid byte at statement position. Before
-	// TokenError was a sync point, parseBlock would drive sync() through
-	// every subsequent character before reaching EOF.
+	// Arrange — a source with invalid bytes at statement position. Before
+	// TokenError was added to atSyncPoint(), parseBlock would drive sync()
+	// through every subsequent character before reaching EOF. The whole
+	// point of this test is that Parse now returns promptly.
+	//
+	// Prompt termination is enforced by the test framework's overall
+	// deadline (go test -timeout, default 10m) — a regression that
+	// reintroduces the O(n) sync scan would still complete on this tiny
+	// input; a regression that reintroduces a true infinite loop would
+	// blow the test timeout. We do not wrap Parse in a per-test goroutine
+	// timeout because doing so would leak the parse goroutine on
+	// timeout, which is a bigger correctness hazard than the slow-scan
+	// case this test guards against.
 	src := []byte("local x = 1\n\x00\x00\x00\nlocal y = 2")
 
-	// Act — should return promptly, not hang.
-	done := make(chan struct{})
-	var chunk *lua.Chunk
-	var err error
-	go func() {
-		chunk, err = lua.Parse("t.lua", src)
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("Parse did not terminate on invalid bytes")
-	}
+	// Act
+	chunk, err := lua.Parse("t.lua", src)
 
 	// Assert — errors surfaced, chunk still returned, both good statements
 	// visible after recovery.

@@ -693,9 +693,20 @@ func TestParseBoundsTableConstructor(t *testing.T) {
 	// Act
 	_, err := lua.Parse("t.lua", []byte(b.String()))
 
-	// Assert
-	if err == nil || !strings.Contains(err.Error(), "table constructor exceeds") {
+	// Assert — exactly one error message (the bounds error), not a
+	// cascade of "expected }" errors from the untriggered brace expect.
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !strings.Contains(err.Error(), "table constructor exceeds") {
 		t.Errorf("expected 'table constructor exceeds' error, got: %v", err)
+	}
+	errs, ok := err.(lua.SyntaxErrors)
+	if !ok {
+		t.Fatalf("err = %T, want lua.SyntaxErrors", err)
+	}
+	if len(errs) != 1 {
+		t.Errorf("expected exactly 1 error (bounds only), got %d: %v", len(errs), errs)
 	}
 }
 

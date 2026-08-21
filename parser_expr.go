@@ -86,11 +86,19 @@ func (p *Parser) parseExprPrec(minPrec int) Expression {
 // parseUnary parses zero or more unary operators followed by a primary.
 // Unary applies at unaryPrec so that operators higher than unary (only `^`)
 // bind tighter to the operand.
+//
+// Nil propagation: if the operand parse returns nil (e.g. `not ` at EOF),
+// we return nil rather than wrapping in a UnaryExpr with a nil Operand.
+// Same discipline as parseExprPrec — no AST node should have nil where a
+// non-nil child is contractually required.
 func (p *Parser) parseUnary() Expression {
 	if op, ok := unaryOp(p.tok.Kind); ok {
 		pos := p.tok.Pos
 		p.advance()
 		operand := p.parseExprPrec(unaryPrec)
+		if operand == nil {
+			return nil
+		}
 		return &UnaryExpr{Position: pos, Op: op, Operand: operand}
 	}
 	return p.parsePrimary()

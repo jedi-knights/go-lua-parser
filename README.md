@@ -3,7 +3,7 @@
 [![CI](https://github.com/jedi-knights/go-lua-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/jedi-knights/go-lua-parser/actions/workflows/ci.yml)
 [![Release](https://github.com/jedi-knights/go-lua-parser/actions/workflows/release.yml/badge.svg)](https://github.com/jedi-knights/go-lua-parser/actions/workflows/release.yml)
 [![Badge](https://github.com/jedi-knights/go-lua-parser/actions/workflows/badge.yaml/badge.svg)](https://github.com/jedi-knights/go-lua-parser/actions/workflows/badge.yaml)
-[![Coverage](https://img.shields.io/badge/Coverage-89%2E0%25-green)](https://jedi-knights.github.io/go-lua-parser/)
+[![Coverage](https://img.shields.io/badge/Coverage-88%2E8%25-green)](https://jedi-knights.github.io/go-lua-parser/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A Lua 5.1 + LuaJIT lexer, parser, and AST for Go tools that reason about Lua source.

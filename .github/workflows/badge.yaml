@@ -47,13 +47,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run tests and collect coverage
-        id: coverage
-        run: |
-          set -euo pipefail
-          go test -race -count=1 -coverprofile=coverage.out ./...
-          PCT="$(go tool cover -func=coverage.out | grep ^total | awk '{print $3}' | tr -d '%')"
-          echo "coverage-percentage=${PCT}" >> "$GITHUB_OUTPUT"
+      - name: Install lcov
+        run: sudo apt-get install -y --quiet lcov
+        shell: bash
+
+      - name: Run tests
+        run: go test -race -count=1 -coverprofile=coverage.out ./...
         shell: bash
 
       - name: Convert coverage to LCOV
@@ -63,10 +62,25 @@ jobs:
           gcov2lcov -infile=coverage.out -outfile=coverage/lcov.info
         shell: bash
 
-      - name: Generate HTML coverage report
+      - name: Compute line coverage
+        id: coverage
+        # Report line coverage (LCOV's metric) rather than statement coverage
+        # (Go's native metric from `go tool cover -func`). The genhtml report
+        # aggregates by line, so the badge and the report always agree.
         run: |
-          sudo apt-get install -y --quiet lcov
-          genhtml coverage/lcov.info -o htmlcov/ --quiet --ignore-errors source
+          set -euo pipefail
+          PCT="$(lcov --summary coverage/lcov.info 2>&1 | grep -i '^\s*lines' | grep -oE '[0-9]+\.[0-9]+' | head -1)"
+          if [ -z "$PCT" ]; then
+            echo "::error::Failed to extract line coverage from lcov --summary"
+            lcov --summary coverage/lcov.info 2>&1 || true
+            exit 1
+          fi
+          echo "coverage-percentage=${PCT}" >> "$GITHUB_OUTPUT"
+          echo "Line coverage: ${PCT}%"
+        shell: bash
+
+      - name: Generate HTML coverage report
+        run: genhtml coverage/lcov.info -o htmlcov/ --quiet --ignore-errors source
         shell: bash
 
       - name: Update coverage badge

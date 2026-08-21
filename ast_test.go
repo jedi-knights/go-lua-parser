@@ -1,8 +1,10 @@
-package lua
+package lua_test
 
 import (
 	"math"
 	"testing"
+
+	lua "github.com/jedi-knights/go-lua-parser"
 )
 
 func TestNumberExprFloat(t *testing.T) {
@@ -23,7 +25,7 @@ func TestNumberExprFloat(t *testing.T) {
 		{"0xFFFFFFFFFFFFFFFF", math.MaxUint64},
 	}
 	for _, c := range cases {
-		n := &NumberExpr{Text: c.text}
+		n := &lua.NumberExpr{Text: c.text}
 		got, err := n.Float()
 		if err != nil {
 			t.Errorf("%q: unexpected error: %v", c.text, err)
@@ -36,7 +38,7 @@ func TestNumberExprFloat(t *testing.T) {
 }
 
 func TestNumberExprFloatInvalid(t *testing.T) {
-	n := &NumberExpr{Text: "not_a_number"}
+	n := &lua.NumberExpr{Text: "not_a_number"}
 	if _, err := n.Float(); err == nil {
 		t.Error("expected error for invalid number, got nil")
 	}
@@ -58,7 +60,7 @@ func TestNumberExprIsInteger(t *testing.T) {
 		{".5", false},
 	}
 	for _, c := range cases {
-		n := &NumberExpr{Text: c.text}
+		n := &lua.NumberExpr{Text: c.text}
 		if got := n.IsInteger(); got != c.want {
 			t.Errorf("%q: IsInteger() = %v, want %v", c.text, got, c.want)
 		}
@@ -70,7 +72,7 @@ func TestNumberExprIsInteger(t *testing.T) {
 // wrong makes callers who dispatch on IsInteger silently corrupt hex
 // integer literals that end in E/e.
 func TestNumberExprHexEndingInEIsInteger(t *testing.T) {
-	n := &NumberExpr{Text: "0xE"}
+	n := &lua.NumberExpr{Text: "0xE"}
 	if !n.IsInteger() {
 		t.Fatal("0xE must be classified as an integer")
 	}

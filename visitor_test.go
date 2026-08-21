@@ -1,8 +1,10 @@
-package lua
+package lua_test
 
 import (
 	"fmt"
 	"testing"
+
+	lua "github.com/jedi-knights/go-lua-parser"
 )
 
 // recorder collects node types in the order Walk visits them. Nil visits
@@ -12,7 +14,7 @@ type recorder struct {
 	visited []string
 }
 
-func (r *recorder) Visit(node Node) Visitor {
+func (r *recorder) Visit(node lua.Node) lua.Visitor {
 	if node == nil {
 		return r
 	}
@@ -20,31 +22,31 @@ func (r *recorder) Visit(node Node) Visitor {
 	return r
 }
 
-func kindName(n Node) string {
+func kindName(n lua.Node) string {
 	switch n.(type) {
-	case *Chunk:
+	case *lua.Chunk:
 		return "Chunk"
-	case *Block:
+	case *lua.Block:
 		return "Block"
-	case *AssignStat:
+	case *lua.AssignStat:
 		return "AssignStat"
-	case *LocalAssignStat:
+	case *lua.LocalAssignStat:
 		return "LocalAssignStat"
-	case *IfStat:
+	case *lua.IfStat:
 		return "IfStat"
-	case *NumericForStat:
+	case *lua.NumericForStat:
 		return "NumericForStat"
-	case *ReturnStat:
+	case *lua.ReturnStat:
 		return "ReturnStat"
-	case *BinaryExpr:
+	case *lua.BinaryExpr:
 		return "BinaryExpr"
-	case *NumberExpr:
+	case *lua.NumberExpr:
 		return "NumberExpr"
-	case *Ident:
+	case *lua.Ident:
 		return "Ident"
-	case *NilExpr:
+	case *lua.NilExpr:
 		return "NilExpr"
-	case *TableExpr:
+	case *lua.TableExpr:
 		return "TableExpr"
 	default:
 		return "Other"
@@ -52,26 +54,26 @@ func kindName(n Node) string {
 }
 
 func TestWalkChunkAndBlock(t *testing.T) {
-	pos := Position{Filename: "t.lua", Line: 1, Column: 1}
-	chunk := &Chunk{
+	pos := lua.Position{Filename: "t.lua", Line: 1, Column: 1}
+	chunk := &lua.Chunk{
 		Filename: "t.lua",
-		Block: &Block{
+		Block: &lua.Block{
 			Position: pos,
-			Statements: []Statement{
-				&LocalAssignStat{
+			Statements: []lua.Statement{
+				&lua.LocalAssignStat{
 					Position: pos,
-					Names:    []*Ident{{Position: pos, Name: "x"}},
-					Values:   []Expression{&NumberExpr{Position: pos, Text: "1"}},
+					Names:    []*lua.Ident{{Position: pos, Name: "x"}},
+					Values:   []lua.Expression{&lua.NumberExpr{Position: pos, Text: "1"}},
 				},
 			},
-			Return: &ReturnStat{
+			Return: &lua.ReturnStat{
 				Position: pos,
-				Values:   []Expression{&Ident{Position: pos, Name: "x"}},
+				Values:   []lua.Expression{&lua.Ident{Position: pos, Name: "x"}},
 			},
 		},
 	}
 	r := &recorder{}
-	Walk(r, chunk)
+	lua.Walk(r, chunk)
 	got := r.visited
 	// LocalAssignStat's declared names are walked before its values, so the
 	// first Ident is the binding `x` and the second is the reference in the
@@ -89,28 +91,28 @@ func TestWalkChunkAndBlock(t *testing.T) {
 
 func TestWalkFuncDeclNameAndParams(t *testing.T) {
 	// Arrange — `function a.b:c(x, y) end`
-	pos := Position{Filename: "t.lua"}
-	stmt := &FuncDeclStat{
+	pos := lua.Position{Filename: "t.lua"}
+	stmt := &lua.FuncDeclStat{
 		Position: pos,
-		Name: &FuncName{
+		Name: &lua.FuncName{
 			Position: pos,
-			Root:     &Ident{Position: pos, Name: "a"},
-			Dots:     []*Ident{{Position: pos, Name: "b"}},
-			Method:   &Ident{Position: pos, Name: "c"},
+			Root:     &lua.Ident{Position: pos, Name: "a"},
+			Dots:     []*lua.Ident{{Position: pos, Name: "b"}},
+			Method:   &lua.Ident{Position: pos, Name: "c"},
 		},
-		Body: &FunctionExpr{
+		Body: &lua.FunctionExpr{
 			Position: pos,
-			Params: []*Ident{
+			Params: []*lua.Ident{
 				{Position: pos, Name: "x"},
 				{Position: pos, Name: "y"},
 			},
-			Body: &Block{Position: pos},
+			Body: &lua.Block{Position: pos},
 		},
 	}
 
 	// Act
 	names := &identNameCollector{}
-	Walk(names, stmt)
+	lua.Walk(names, stmt)
 
 	// Assert — declared function name identifiers AND parameter names
 	// must all appear; before this fix they were silently dropped.
@@ -127,20 +129,20 @@ func TestWalkFuncDeclNameAndParams(t *testing.T) {
 
 func TestWalkGenericForNames(t *testing.T) {
 	// Arrange — `for k, v in pairs(t) do end`
-	pos := Position{Filename: "t.lua"}
-	stmt := &GenericForStat{
+	pos := lua.Position{Filename: "t.lua"}
+	stmt := &lua.GenericForStat{
 		Position: pos,
-		Names: []*Ident{
+		Names: []*lua.Ident{
 			{Position: pos, Name: "k"},
 			{Position: pos, Name: "v"},
 		},
-		Values: []Expression{&Ident{Position: pos, Name: "t"}},
-		Body:   &Block{Position: pos},
+		Values: []lua.Expression{&lua.Ident{Position: pos, Name: "t"}},
+		Body:   &lua.Block{Position: pos},
 	}
 
 	// Act
 	names := &identNameCollector{}
-	Walk(names, stmt)
+	lua.Walk(names, stmt)
 
 	// Assert — loop-declared names appear before the iterable expression.
 	want := []string{"k", "v", "t"}
@@ -161,8 +163,8 @@ type identNameCollector struct {
 	got []string
 }
 
-func (c *identNameCollector) Visit(node Node) Visitor {
-	if id, ok := node.(*Ident); ok {
+func (c *identNameCollector) Visit(node lua.Node) lua.Visitor {
+	if id, ok := node.(*lua.Ident); ok {
 		c.got = append(c.got, id.Name)
 	}
 	return c
@@ -203,14 +205,14 @@ goto retry
 return t
 `)
 
-	chunk, err := Parse("all.lua", src)
+	chunk, err := lua.Parse("all.lua", src)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
 
 	// Act
 	counter := &nodeKindCounter{seen: map[string]int{}}
-	Walk(counter, chunk)
+	lua.Walk(counter, chunk)
 
 	// Assert — a representative subset must appear. Missing any one of
 	// these means the corresponding walker case did not run.
@@ -249,7 +251,7 @@ type nodeKindCounter struct {
 	seen map[string]int
 }
 
-func (c *nodeKindCounter) Visit(node Node) Visitor {
+func (c *nodeKindCounter) Visit(node lua.Node) lua.Visitor {
 	if node == nil {
 		return c
 	}
@@ -258,19 +260,19 @@ func (c *nodeKindCounter) Visit(node Node) Visitor {
 }
 
 func TestWalkIfAndBinary(t *testing.T) {
-	pos := Position{Filename: "t.lua", Line: 1, Column: 1}
-	ifStat := &IfStat{
+	pos := lua.Position{Filename: "t.lua", Line: 1, Column: 1}
+	ifStat := &lua.IfStat{
 		Position: pos,
-		Cond: &BinaryExpr{
+		Cond: &lua.BinaryExpr{
 			Position: pos,
 			Op:       "<",
-			Left:     &Ident{Position: pos, Name: "n"},
-			Right:    &NumberExpr{Position: pos, Text: "10"},
+			Left:     &lua.Ident{Position: pos, Name: "n"},
+			Right:    &lua.NumberExpr{Position: pos, Text: "10"},
 		},
-		Then: &Block{Position: pos},
+		Then: &lua.Block{Position: pos},
 	}
 	r := &recorder{}
-	Walk(r, ifStat)
+	lua.Walk(r, ifStat)
 	// If-then subtree: IfStat, BinaryExpr, Ident, NumberExpr, Block.
 	want := []string{"IfStat", "BinaryExpr", "Ident", "NumberExpr", "Block"}
 	if len(r.visited) != len(want) {
@@ -285,7 +287,7 @@ func TestWalkIfAndBinary(t *testing.T) {
 
 func TestWalkNilNode(t *testing.T) {
 	r := &recorder{}
-	Walk(r, nil)
+	lua.Walk(r, nil)
 	if len(r.visited) != 0 {
 		t.Errorf("walking nil should visit nothing, got %v", r.visited)
 	}
@@ -294,7 +296,7 @@ func TestWalkNilNode(t *testing.T) {
 // stopVisitor returns nil after the first visit, so Walk should not descend.
 type stopVisitor struct{ count int }
 
-func (s *stopVisitor) Visit(node Node) Visitor {
+func (s *stopVisitor) Visit(node lua.Node) lua.Visitor {
 	if node == nil {
 		return s
 	}
@@ -303,32 +305,32 @@ func (s *stopVisitor) Visit(node Node) Visitor {
 }
 
 func TestWalkStopsWhenVisitReturnsNil(t *testing.T) {
-	pos := Position{Filename: "t.lua"}
-	chunk := &Chunk{Filename: "t.lua", Block: &Block{Position: pos}}
+	pos := lua.Position{Filename: "t.lua"}
+	chunk := &lua.Chunk{Filename: "t.lua", Block: &lua.Block{Position: pos}}
 	v := &stopVisitor{}
-	Walk(v, chunk)
+	lua.Walk(v, chunk)
 	if v.count != 1 {
 		t.Errorf("visited %d nodes, want 1 (stopped at root)", v.count)
 	}
 }
 
 func TestTokenKindString(t *testing.T) {
-	if got := TokenLocal.String(); got != "local" {
+	if got := lua.TokenLocal.String(); got != "local" {
 		t.Errorf("TokenLocal.String() = %q, want %q", got, "local")
 	}
-	if got := TokenEq.String(); got != "==" {
+	if got := lua.TokenEq.String(); got != "==" {
 		t.Errorf("TokenEq.String() = %q, want %q", got, "==")
 	}
-	if got := TokenKind(9999).String(); got == "" {
+	if got := lua.TokenKind(9999).String(); got == "" {
 		t.Error("unknown TokenKind should produce a non-empty string")
 	}
 }
 
 func TestPositionString(t *testing.T) {
-	if got := (Position{Line: 3, Column: 5}).String(); got != "3:5" {
+	if got := (lua.Position{Line: 3, Column: 5}).String(); got != "3:5" {
 		t.Errorf("Position.String() = %q, want %q", got, "3:5")
 	}
-	if got := (Position{Filename: "x.lua", Line: 3, Column: 5}).String(); got != "x.lua:3:5" {
+	if got := (lua.Position{Filename: "x.lua", Line: 3, Column: 5}).String(); got != "x.lua:3:5" {
 		t.Errorf("Position.String() = %q, want %q", got, "x.lua:3:5")
 	}
 }

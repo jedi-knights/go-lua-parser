@@ -1,9 +1,11 @@
-package lua
+package lua_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	lua "github.com/jedi-knights/go-lua-parser"
 )
 
 // TestParseCorpus parses every .lua file under testdata/ and fails on any
@@ -25,7 +27,7 @@ func TestParseCorpus(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", path, err)
 			}
-			chunk, perr := Parse(path, src)
+			chunk, perr := lua.Parse(path, src)
 			if perr != nil {
 				t.Fatalf("parse errors in %s:\n%v", path, perr)
 			}

@@ -1,6 +1,10 @@
-package lua
+package lua_test
 
-import "testing"
+import (
+	"testing"
+
+	lua "github.com/jedi-knights/go-lua-parser"
+)
 
 // benchCorpus is a representative sample of Lua source that exercises
 // long strings, table constructors, method calls, control flow, and
@@ -58,10 +62,10 @@ return M
 
 func BenchmarkLexer(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		l := NewLexer("bench.lua", benchCorpus)
+		l := lua.NewLexer("bench.lua", benchCorpus)
 		for {
 			tok := l.Next()
-			if tok.Kind == TokenEOF {
+			if tok.Kind == lua.TokenEOF {
 				break
 			}
 		}
@@ -71,7 +75,7 @@ func BenchmarkLexer(b *testing.B) {
 
 func BenchmarkParse(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		if _, err := Parse("bench.lua", benchCorpus); err != nil {
+		if _, err := lua.Parse("bench.lua", benchCorpus); err != nil {
 			b.Fatalf("unexpected parse error: %v", err)
 		}
 	}

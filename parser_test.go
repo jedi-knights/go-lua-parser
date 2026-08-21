@@ -1,17 +1,19 @@
-package lua
+package lua_test
 
 import (
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	lua "github.com/jedi-knights/go-lua-parser"
 )
 
 // mustParse parses src and fails the test if lexing or parsing reports any
 // error. It returns the resulting Chunk for further inspection.
-func mustParse(t *testing.T, src string) *Chunk {
+func mustParse(t *testing.T, src string) *lua.Chunk {
 	t.Helper()
-	chunk, err := Parse("t.lua", []byte(src))
+	chunk, err := lua.Parse("t.lua", []byte(src))
 	if err != nil {
 		t.Fatalf("parse error: %v\nsource: %s", err, src)
 	}
@@ -19,7 +21,7 @@ func mustParse(t *testing.T, src string) *Chunk {
 }
 
 // singleStat asserts the chunk has exactly one statement and returns it.
-func singleStat(t *testing.T, chunk *Chunk) Statement {
+func singleStat(t *testing.T, chunk *lua.Chunk) lua.Statement {
 	t.Helper()
 	if chunk.Block == nil {
 		t.Fatal("nil block")
@@ -32,10 +34,10 @@ func singleStat(t *testing.T, chunk *Chunk) Statement {
 
 // firstExpr extracts the first value expression from `local _ = <expr>` so
 // tests can inspect expression parsing in isolation.
-func firstExpr(t *testing.T, src string) Expression {
+func firstExpr(t *testing.T, src string) lua.Expression {
 	t.Helper()
 	stat := singleStat(t, mustParse(t, "local _ = "+src))
-	la, ok := stat.(*LocalAssignStat)
+	la, ok := stat.(*lua.LocalAssignStat)
 	if !ok {
 		t.Fatalf("expected LocalAssignStat, got %T", stat)
 	}
@@ -62,7 +64,7 @@ func TestParseCommentsOnly(t *testing.T) {
 }
 
 func TestParsePropagatesLexerErrors(t *testing.T) {
-	_, err := Parse("t.lua", []byte(`"unterminated`))
+	_, err := lua.Parse("t.lua", []byte(`"unterminated`))
 	if err == nil {
 		t.Fatal("expected error from unterminated string")
 	}
@@ -72,7 +74,7 @@ func TestParsePropagatesLexerErrors(t *testing.T) {
 
 func TestParseLocalSingle(t *testing.T) {
 	stat := singleStat(t, mustParse(t, "local x = 1"))
-	la, ok := stat.(*LocalAssignStat)
+	la, ok := stat.(*lua.LocalAssignStat)
 	if !ok {
 		t.Fatalf("got %T, want *LocalAssignStat", stat)
 	}
@@ -82,44 +84,44 @@ func TestParseLocalSingle(t *testing.T) {
 	if len(la.Values) != 1 {
 		t.Fatalf("values = %d, want 1", len(la.Values))
 	}
-	if n, ok := la.Values[0].(*NumberExpr); !ok || n.Text != "1" {
+	if n, ok := la.Values[0].(*lua.NumberExpr); !ok || n.Text != "1" {
 		t.Errorf("value = %#v, want NumberExpr{1}", la.Values[0])
 	}
 }
 
 func TestParseLocalMulti(t *testing.T) {
-	la := singleStat(t, mustParse(t, "local a, b, c = 1, 2, 3")).(*LocalAssignStat)
+	la := singleStat(t, mustParse(t, "local a, b, c = 1, 2, 3")).(*lua.LocalAssignStat)
 	if len(la.Names) != 3 || len(la.Values) != 3 {
 		t.Fatalf("names=%d values=%d, want 3/3", len(la.Names), len(la.Values))
 	}
 }
 
 func TestParseLocalNoValues(t *testing.T) {
-	la := singleStat(t, mustParse(t, "local x")).(*LocalAssignStat)
+	la := singleStat(t, mustParse(t, "local x")).(*lua.LocalAssignStat)
 	if len(la.Names) != 1 || len(la.Values) != 0 {
 		t.Errorf("names=%d values=%d, want 1/0", len(la.Names), len(la.Values))
 	}
 }
 
 func TestParseAssignment(t *testing.T) {
-	as := singleStat(t, mustParse(t, "x = 1")).(*AssignStat)
+	as := singleStat(t, mustParse(t, "x = 1")).(*lua.AssignStat)
 	if len(as.Targets) != 1 || len(as.Values) != 1 {
 		t.Errorf("targets=%d values=%d, want 1/1", len(as.Targets), len(as.Values))
 	}
-	if id, ok := as.Targets[0].(*Ident); !ok || id.Name != "x" {
+	if id, ok := as.Targets[0].(*lua.Ident); !ok || id.Name != "x" {
 		t.Errorf("target = %#v", as.Targets[0])
 	}
 }
 
 func TestParseMultiAssign(t *testing.T) {
-	as := singleStat(t, mustParse(t, "a, t[1], obj.field = 1, 2, 3")).(*AssignStat)
+	as := singleStat(t, mustParse(t, "a, t[1], obj.field = 1, 2, 3")).(*lua.AssignStat)
 	if len(as.Targets) != 3 || len(as.Values) != 3 {
 		t.Fatalf("targets=%d values=%d, want 3/3", len(as.Targets), len(as.Values))
 	}
-	if _, ok := as.Targets[1].(*IndexExpr); !ok {
+	if _, ok := as.Targets[1].(*lua.IndexExpr); !ok {
 		t.Errorf("target[1] = %T, want *IndexExpr", as.Targets[1])
 	}
-	if _, ok := as.Targets[2].(*FieldExpr); !ok {
+	if _, ok := as.Targets[2].(*lua.FieldExpr); !ok {
 		t.Errorf("target[2] = %T, want *FieldExpr", as.Targets[2])
 	}
 }
@@ -128,7 +130,7 @@ func TestParseMultiAssign(t *testing.T) {
 
 func TestParseIfElseif(t *testing.T) {
 	src := `if x then y = 1 elseif z then y = 2 else y = 3 end`
-	stat := singleStat(t, mustParse(t, src)).(*IfStat)
+	stat := singleStat(t, mustParse(t, src)).(*lua.IfStat)
 	if len(stat.ElseIfs) != 1 {
 		t.Errorf("elseifs = %d, want 1", len(stat.ElseIfs))
 	}
@@ -138,8 +140,8 @@ func TestParseIfElseif(t *testing.T) {
 }
 
 func TestParseWhile(t *testing.T) {
-	w := singleStat(t, mustParse(t, "while x < 10 do x = x + 1 end")).(*WhileStat)
-	if _, ok := w.Cond.(*BinaryExpr); !ok {
+	w := singleStat(t, mustParse(t, "while x < 10 do x = x + 1 end")).(*lua.WhileStat)
+	if _, ok := w.Cond.(*lua.BinaryExpr); !ok {
 		t.Errorf("cond = %T, want *BinaryExpr", w.Cond)
 	}
 	if len(w.Body.Statements) != 1 {
@@ -148,14 +150,14 @@ func TestParseWhile(t *testing.T) {
 }
 
 func TestParseRepeat(t *testing.T) {
-	r := singleStat(t, mustParse(t, "repeat x = x - 1 until x == 0")).(*RepeatStat)
-	if _, ok := r.Cond.(*BinaryExpr); !ok {
+	r := singleStat(t, mustParse(t, "repeat x = x - 1 until x == 0")).(*lua.RepeatStat)
+	if _, ok := r.Cond.(*lua.BinaryExpr); !ok {
 		t.Errorf("cond = %T", r.Cond)
 	}
 }
 
 func TestParseNumericFor(t *testing.T) {
-	f := singleStat(t, mustParse(t, "for i = 1, 10, 2 do print(i) end")).(*NumericForStat)
+	f := singleStat(t, mustParse(t, "for i = 1, 10, 2 do print(i) end")).(*lua.NumericForStat)
 	if f.Name.Name != "i" {
 		t.Errorf("name = %q", f.Name.Name)
 	}
@@ -165,14 +167,14 @@ func TestParseNumericFor(t *testing.T) {
 }
 
 func TestParseNumericForNoStep(t *testing.T) {
-	f := singleStat(t, mustParse(t, "for i = 1, 10 do end")).(*NumericForStat)
+	f := singleStat(t, mustParse(t, "for i = 1, 10 do end")).(*lua.NumericForStat)
 	if f.Step != nil {
 		t.Errorf("step = %#v, want nil", f.Step)
 	}
 }
 
 func TestParseGenericFor(t *testing.T) {
-	f := singleStat(t, mustParse(t, "for k, v in pairs(t) do end")).(*GenericForStat)
+	f := singleStat(t, mustParse(t, "for k, v in pairs(t) do end")).(*lua.GenericForStat)
 	if len(f.Names) != 2 {
 		t.Errorf("names = %d, want 2", len(f.Names))
 	}
@@ -182,7 +184,7 @@ func TestParseGenericFor(t *testing.T) {
 }
 
 func TestParseDoBlock(t *testing.T) {
-	d := singleStat(t, mustParse(t, "do local x = 1 end")).(*DoStat)
+	d := singleStat(t, mustParse(t, "do local x = 1 end")).(*lua.DoStat)
 	if len(d.Body.Statements) != 1 {
 		t.Errorf("body statements = %d, want 1", len(d.Body.Statements))
 	}
@@ -194,7 +196,7 @@ func TestParseBreakGotoLabel(t *testing.T) {
 	if len(chunk.Block.Statements) != 2 {
 		t.Fatalf("stmts = %d, want 2 (label, for)", len(chunk.Block.Statements))
 	}
-	if _, ok := chunk.Block.Statements[0].(*LabelStat); !ok {
+	if _, ok := chunk.Block.Statements[0].(*lua.LabelStat); !ok {
 		t.Errorf("stmt[0] = %T, want *LabelStat", chunk.Block.Statements[0])
 	}
 }
@@ -202,7 +204,7 @@ func TestParseBreakGotoLabel(t *testing.T) {
 // --- function forms -------------------------------------------------------
 
 func TestParseFuncDeclSimple(t *testing.T) {
-	fd := singleStat(t, mustParse(t, "function foo() return 1 end")).(*FuncDeclStat)
+	fd := singleStat(t, mustParse(t, "function foo() return 1 end")).(*lua.FuncDeclStat)
 	if fd.Name.Root.Name != "foo" {
 		t.Errorf("root = %q", fd.Name.Root.Name)
 	}
@@ -212,7 +214,7 @@ func TestParseFuncDeclSimple(t *testing.T) {
 }
 
 func TestParseFuncDeclDotted(t *testing.T) {
-	fd := singleStat(t, mustParse(t, "function a.b.c() end")).(*FuncDeclStat)
+	fd := singleStat(t, mustParse(t, "function a.b.c() end")).(*lua.FuncDeclStat)
 	if len(fd.Name.Dots) != 2 {
 		t.Errorf("dots = %d, want 2", len(fd.Name.Dots))
 	}
@@ -222,7 +224,7 @@ func TestParseFuncDeclDotted(t *testing.T) {
 }
 
 func TestParseFuncDeclMethod(t *testing.T) {
-	fd := singleStat(t, mustParse(t, "function obj:greet(msg) end")).(*FuncDeclStat)
+	fd := singleStat(t, mustParse(t, "function obj:greet(msg) end")).(*lua.FuncDeclStat)
 	if fd.Name.Method == nil || fd.Name.Method.Name != "greet" {
 		t.Errorf("method = %v", fd.Name.Method)
 	}
@@ -232,7 +234,7 @@ func TestParseFuncDeclMethod(t *testing.T) {
 }
 
 func TestParseLocalFunction(t *testing.T) {
-	lf := singleStat(t, mustParse(t, "local function f(a, b, ...) return a end")).(*LocalFuncStat)
+	lf := singleStat(t, mustParse(t, "local function f(a, b, ...) return a end")).(*lua.LocalFuncStat)
 	if lf.Name.Name != "f" {
 		t.Errorf("name = %q", lf.Name.Name)
 	}
@@ -242,15 +244,15 @@ func TestParseLocalFunction(t *testing.T) {
 }
 
 func TestParseCallStatement(t *testing.T) {
-	cs := singleStat(t, mustParse(t, "print(1, 2, 3)")).(*CallStat)
-	if _, ok := cs.Call.(*CallExpr); !ok {
+	cs := singleStat(t, mustParse(t, "print(1, 2, 3)")).(*lua.CallStat)
+	if _, ok := cs.Call.(*lua.CallExpr); !ok {
 		t.Errorf("call = %T", cs.Call)
 	}
 }
 
 func TestParseMethodCall(t *testing.T) {
-	cs := singleStat(t, mustParse(t, "obj:greet(msg)")).(*CallStat)
-	mc, ok := cs.Call.(*MethodCallExpr)
+	cs := singleStat(t, mustParse(t, "obj:greet(msg)")).(*lua.CallStat)
+	mc, ok := cs.Call.(*lua.MethodCallExpr)
 	if !ok {
 		t.Fatalf("call = %T, want *MethodCallExpr", cs.Call)
 	}
@@ -277,14 +279,14 @@ func TestParseReturnValues(t *testing.T) {
 
 func TestParseFieldChain(t *testing.T) {
 	e := firstExpr(t, "a.b.c")
-	f, ok := e.(*FieldExpr)
+	f, ok := e.(*lua.FieldExpr)
 	if !ok {
 		t.Fatalf("outer = %T", e)
 	}
 	if f.Name != "c" {
 		t.Errorf("outer field = %q", f.Name)
 	}
-	inner, ok := f.Object.(*FieldExpr)
+	inner, ok := f.Object.(*lua.FieldExpr)
 	if !ok || inner.Name != "b" {
 		t.Errorf("inner = %#v", f.Object)
 	}
@@ -292,22 +294,22 @@ func TestParseFieldChain(t *testing.T) {
 
 func TestParseIndexChain(t *testing.T) {
 	e := firstExpr(t, "a[1][2]")
-	outer, ok := e.(*IndexExpr)
+	outer, ok := e.(*lua.IndexExpr)
 	if !ok {
 		t.Fatalf("outer = %T", e)
 	}
-	if _, ok := outer.Object.(*IndexExpr); !ok {
+	if _, ok := outer.Object.(*lua.IndexExpr); !ok {
 		t.Errorf("inner = %T, want *IndexExpr", outer.Object)
 	}
 }
 
 func TestParseCallChain(t *testing.T) {
 	e := firstExpr(t, "f(1)(2)(3)")
-	c, ok := e.(*CallExpr)
+	c, ok := e.(*lua.CallExpr)
 	if !ok {
 		t.Fatalf("outer = %T", e)
 	}
-	if _, ok := c.Fn.(*CallExpr); !ok {
+	if _, ok := c.Fn.(*lua.CallExpr); !ok {
 		t.Errorf("inner call = %T", c.Fn)
 	}
 }
@@ -315,7 +317,7 @@ func TestParseCallChain(t *testing.T) {
 func TestParseParenthesizedPrefix(t *testing.T) {
 	// `(f)()` — the () around f still returns a callable.
 	e := firstExpr(t, "(f)()")
-	if _, ok := e.(*CallExpr); !ok {
+	if _, ok := e.(*lua.CallExpr); !ok {
 		t.Errorf("expr = %T, want *CallExpr", e)
 	}
 }
@@ -324,22 +326,22 @@ func TestParseParenthesizedPrefix(t *testing.T) {
 
 func TestParseCallWithStringSugar(t *testing.T) {
 	e := firstExpr(t, `require "mod"`)
-	c := e.(*CallExpr)
+	c := e.(*lua.CallExpr)
 	if len(c.Args) != 1 {
 		t.Fatalf("args = %d, want 1", len(c.Args))
 	}
-	if s, ok := c.Args[0].(*StringExpr); !ok || s.Value != "mod" {
+	if s, ok := c.Args[0].(*lua.StringExpr); !ok || s.Value != "mod" {
 		t.Errorf("arg = %#v", c.Args[0])
 	}
 }
 
 func TestParseCallWithTableSugar(t *testing.T) {
 	e := firstExpr(t, `f {1, 2, 3}`)
-	c := e.(*CallExpr)
+	c := e.(*lua.CallExpr)
 	if len(c.Args) != 1 {
 		t.Fatalf("args = %d, want 1", len(c.Args))
 	}
-	if _, ok := c.Args[0].(*TableExpr); !ok {
+	if _, ok := c.Args[0].(*lua.TableExpr); !ok {
 		t.Errorf("arg = %T, want *TableExpr", c.Args[0])
 	}
 }
@@ -348,7 +350,7 @@ func TestParseCallWithTableSugar(t *testing.T) {
 
 func TestParseTablePositional(t *testing.T) {
 	e := firstExpr(t, "{10, 20, 30}")
-	tab := e.(*TableExpr)
+	tab := e.(*lua.TableExpr)
 	if len(tab.Fields) != 3 {
 		t.Fatalf("fields = %d, want 3", len(tab.Fields))
 	}
@@ -361,7 +363,7 @@ func TestParseTablePositional(t *testing.T) {
 
 func TestParseTableKeyed(t *testing.T) {
 	e := firstExpr(t, `{name = "a", age = 42, [1] = "first"}`)
-	tab := e.(*TableExpr)
+	tab := e.(*lua.TableExpr)
 	if len(tab.Fields) != 3 {
 		t.Fatalf("fields = %d, want 3", len(tab.Fields))
 	}
@@ -375,7 +377,7 @@ func TestParseTableKeyed(t *testing.T) {
 
 func TestParseTableSemicolonSeparator(t *testing.T) {
 	e := firstExpr(t, "{1; 2; 3}")
-	tab := e.(*TableExpr)
+	tab := e.(*lua.TableExpr)
 	if len(tab.Fields) != 3 {
 		t.Errorf("fields = %d, want 3", len(tab.Fields))
 	}
@@ -383,7 +385,7 @@ func TestParseTableSemicolonSeparator(t *testing.T) {
 
 func TestParseTableTrailingSeparator(t *testing.T) {
 	e := firstExpr(t, "{1, 2,}")
-	tab := e.(*TableExpr)
+	tab := e.(*lua.TableExpr)
 	if len(tab.Fields) != 2 {
 		t.Errorf("fields = %d, want 2", len(tab.Fields))
 	}
@@ -393,11 +395,11 @@ func TestParseTableTrailingSeparator(t *testing.T) {
 
 func TestParsePrecedenceMultThenAdd(t *testing.T) {
 	// 1 + 2 * 3 should parse as 1 + (2 * 3)
-	e := firstExpr(t, "1 + 2 * 3").(*BinaryExpr)
+	e := firstExpr(t, "1 + 2 * 3").(*lua.BinaryExpr)
 	if e.Op != "+" {
 		t.Errorf("outer op = %q, want +", e.Op)
 	}
-	right, ok := e.Right.(*BinaryExpr)
+	right, ok := e.Right.(*lua.BinaryExpr)
 	if !ok || right.Op != "*" {
 		t.Errorf("right = %#v", e.Right)
 	}
@@ -405,71 +407,71 @@ func TestParsePrecedenceMultThenAdd(t *testing.T) {
 
 func TestParsePrecedenceAndOr(t *testing.T) {
 	// a or b and c should parse as a or (b and c)
-	e := firstExpr(t, "a or b and c").(*BinaryExpr)
+	e := firstExpr(t, "a or b and c").(*lua.BinaryExpr)
 	if e.Op != "or" {
 		t.Errorf("outer op = %q, want or", e.Op)
 	}
-	if right, ok := e.Right.(*BinaryExpr); !ok || right.Op != "and" {
+	if right, ok := e.Right.(*lua.BinaryExpr); !ok || right.Op != "and" {
 		t.Errorf("right = %#v", e.Right)
 	}
 }
 
 func TestParseConcatRightAssoc(t *testing.T) {
 	// a..b..c should parse as a..(b..c)
-	e := firstExpr(t, "a..b..c").(*BinaryExpr)
+	e := firstExpr(t, "a..b..c").(*lua.BinaryExpr)
 	if e.Op != ".." {
 		t.Errorf("outer op = %q", e.Op)
 	}
-	right, ok := e.Right.(*BinaryExpr)
+	right, ok := e.Right.(*lua.BinaryExpr)
 	if !ok || right.Op != ".." {
 		t.Fatalf("right = %#v", e.Right)
 	}
-	if id, ok := e.Left.(*Ident); !ok || id.Name != "a" {
+	if id, ok := e.Left.(*lua.Ident); !ok || id.Name != "a" {
 		t.Errorf("left = %#v", e.Left)
 	}
 }
 
 func TestParseCaretRightAssoc(t *testing.T) {
 	// 2^3^2 should parse as 2^(3^2)
-	e := firstExpr(t, "2^3^2").(*BinaryExpr)
+	e := firstExpr(t, "2^3^2").(*lua.BinaryExpr)
 	if e.Op != "^" {
 		t.Errorf("outer op = %q", e.Op)
 	}
-	if right, ok := e.Right.(*BinaryExpr); !ok || right.Op != "^" {
+	if right, ok := e.Right.(*lua.BinaryExpr); !ok || right.Op != "^" {
 		t.Errorf("right = %#v", e.Right)
 	}
 }
 
 func TestParseUnaryLowerThanCaret(t *testing.T) {
 	// -2^2 should parse as -(2^2)
-	e := firstExpr(t, "-2^2").(*UnaryExpr)
+	e := firstExpr(t, "-2^2").(*lua.UnaryExpr)
 	if e.Op != "-" {
 		t.Errorf("op = %q", e.Op)
 	}
-	if b, ok := e.Operand.(*BinaryExpr); !ok || b.Op != "^" {
+	if b, ok := e.Operand.(*lua.BinaryExpr); !ok || b.Op != "^" {
 		t.Errorf("operand = %#v", e.Operand)
 	}
 }
 
 func TestParseUnaryChain(t *testing.T) {
-	e := firstExpr(t, "not not x").(*UnaryExpr)
+	e := firstExpr(t, "not not x").(*lua.UnaryExpr)
 	if e.Op != "not" {
 		t.Errorf("outer op = %q", e.Op)
 	}
-	if inner, ok := e.Operand.(*UnaryExpr); !ok || inner.Op != "not" {
+	if inner, ok := e.Operand.(*lua.UnaryExpr); !ok || inner.Op != "not" {
 		t.Errorf("inner = %#v", e.Operand)
 	}
 }
 
 func TestParseLength(t *testing.T) {
-	e := firstExpr(t, "#t").(*UnaryExpr)
+	e := firstExpr(t, "#t").(*lua.UnaryExpr)
 	if e.Op != "#" {
 		t.Errorf("op = %q", e.Op)
 	}
 }
 
 func TestParseIntegerDivision(t *testing.T) {
-	e := firstExpr(t, "a // b").(*BinaryExpr)
+	e := firstExpr(t, "a // b").(*lua.BinaryExpr)
 	if e.Op != "//" {
 		t.Errorf("op = %q, want //", e.Op)
 	}
@@ -499,11 +501,11 @@ func TestParseLiterals(t *testing.T) {
 
 func TestParseVarargExpr(t *testing.T) {
 	// `...` is legal inside a vararg function body.
-	stat := singleStat(t, mustParse(t, "local function f(...) return ... end")).(*LocalFuncStat)
+	stat := singleStat(t, mustParse(t, "local function f(...) return ... end")).(*lua.LocalFuncStat)
 	if stat.Body.Body.Return == nil {
 		t.Fatal("expected return")
 	}
-	if _, ok := stat.Body.Body.Return.Values[0].(*VarargExpr); !ok {
+	if _, ok := stat.Body.Body.Return.Values[0].(*lua.VarargExpr); !ok {
 		t.Errorf("return value = %T", stat.Body.Body.Return.Values[0])
 	}
 }
@@ -515,14 +517,14 @@ func TestParseCallWithLongStringSugar(t *testing.T) {
 	// The lexer emits TokenString for both short and long strings, so this
 	// exercises the sugar path end-to-end.
 	e := firstExpr(t, "require [[mod]]")
-	c, ok := e.(*CallExpr)
+	c, ok := e.(*lua.CallExpr)
 	if !ok {
 		t.Fatalf("expr = %T, want *CallExpr", e)
 	}
 	if len(c.Args) != 1 {
 		t.Fatalf("args = %d, want 1", len(c.Args))
 	}
-	s, ok := c.Args[0].(*StringExpr)
+	s, ok := c.Args[0].(*lua.StringExpr)
 	if !ok {
 		t.Fatalf("arg = %T, want *StringExpr", c.Args[0])
 	}
@@ -534,7 +536,7 @@ func TestParseCallWithLongStringSugar(t *testing.T) {
 // --- error cases ----------------------------------------------------------
 
 func TestParseErrorMissingEnd(t *testing.T) {
-	_, err := Parse("t.lua", []byte("do local x = 1"))
+	_, err := lua.Parse("t.lua", []byte("do local x = 1"))
 	if err == nil {
 		t.Fatal("expected error for unterminated do-block")
 	}
@@ -542,7 +544,7 @@ func TestParseErrorMissingEnd(t *testing.T) {
 
 func TestParseErrorBadStatement(t *testing.T) {
 	// Bare `1 = 2` is not a valid assignment target.
-	_, err := Parse("t.lua", []byte("1 = 2"))
+	_, err := lua.Parse("t.lua", []byte("1 = 2"))
 	if err == nil {
 		t.Fatal("expected error for invalid assignment target")
 	}
@@ -555,7 +557,7 @@ func TestParseRecoveryAfterBadStatement(t *testing.T) {
 	// should record an error, sync to the next statement boundary (`local`),
 	// and still return the local assignment as a valid AST node.
 	src := "xx yy = 1\nlocal z = 2"
-	chunk, err := Parse("t.lua", []byte(src))
+	chunk, err := lua.Parse("t.lua", []byte(src))
 	if err == nil {
 		t.Fatal("expected an error from bad first statement")
 	}
@@ -564,7 +566,7 @@ func TestParseRecoveryAfterBadStatement(t *testing.T) {
 	}
 	found := false
 	for _, s := range chunk.Block.Statements {
-		if la, ok := s.(*LocalAssignStat); ok {
+		if la, ok := s.(*lua.LocalAssignStat); ok {
 			if len(la.Names) == 1 && la.Names[0].Name == "z" {
 				found = true
 			}
@@ -580,11 +582,11 @@ func TestParseRecoveryDoesNotCascade(t *testing.T) {
 	// not a runaway cascade. We check that the count is bounded, not exact,
 	// because expect() calls can inflate the count slightly.
 	src := "xx yy\nlocal z = 2\naa bb"
-	_, err := Parse("t.lua", []byte(src))
+	_, err := lua.Parse("t.lua", []byte(src))
 	if err == nil {
 		t.Fatal("expected errors")
 	}
-	errs, ok := err.(SyntaxErrors)
+	errs, ok := err.(lua.SyntaxErrors)
 	if !ok {
 		t.Fatalf("err = %T, want SyntaxErrors", err)
 	}
@@ -601,10 +603,10 @@ func TestParseRecoveryOnLexerErrorTerminates(t *testing.T) {
 
 	// Act — should return promptly, not hang.
 	done := make(chan struct{})
-	var chunk *Chunk
+	var chunk *lua.Chunk
 	var err error
 	go func() {
-		chunk, err = Parse("t.lua", src)
+		chunk, err = lua.Parse("t.lua", src)
 		close(done)
 	}()
 	select {
@@ -630,7 +632,7 @@ func TestParseBoundsParamList(t *testing.T) {
 	// Arrange — a function decl with > MaxListItems parameters.
 	var b strings.Builder
 	b.WriteString("local f = function(")
-	for i := 0; i < MaxListItems+50; i++ {
+	for i := 0; i < lua.MaxListItems+50; i++ {
 		if i > 0 {
 			b.WriteString(", ")
 		}
@@ -639,7 +641,7 @@ func TestParseBoundsParamList(t *testing.T) {
 	b.WriteString(") end")
 
 	// Act
-	chunk, err := Parse("t.lua", []byte(b.String()))
+	chunk, err := lua.Parse("t.lua", []byte(b.String()))
 
 	// Assert — error mentions the cap; params are truncated to the cap.
 	if err == nil {
@@ -648,13 +650,13 @@ func TestParseBoundsParamList(t *testing.T) {
 	if !strings.Contains(err.Error(), "parameter list exceeds") {
 		t.Errorf("expected 'parameter list exceeds' in error, got: %v", err)
 	}
-	assign, ok := chunk.Block.Statements[0].(*LocalAssignStat)
+	assign, ok := chunk.Block.Statements[0].(*lua.LocalAssignStat)
 	if !ok {
 		t.Fatalf("unexpected first stmt: %T", chunk.Block.Statements[0])
 	}
-	fn := assign.Values[0].(*FunctionExpr)
-	if len(fn.Params) > MaxListItems {
-		t.Errorf("params not capped: got %d, want <= %d", len(fn.Params), MaxListItems)
+	fn := assign.Values[0].(*lua.FunctionExpr)
+	if len(fn.Params) > lua.MaxListItems {
+		t.Errorf("params not capped: got %d, want <= %d", len(fn.Params), lua.MaxListItems)
 	}
 }
 
@@ -662,7 +664,7 @@ func TestParseBoundsExprList(t *testing.T) {
 	// Arrange — a return statement with > MaxListItems expressions.
 	var b strings.Builder
 	b.WriteString("return ")
-	for i := 0; i < MaxListItems+50; i++ {
+	for i := 0; i < lua.MaxListItems+50; i++ {
 		if i > 0 {
 			b.WriteString(", ")
 		}
@@ -670,7 +672,7 @@ func TestParseBoundsExprList(t *testing.T) {
 	}
 
 	// Act
-	_, err := Parse("t.lua", []byte(b.String()))
+	_, err := lua.Parse("t.lua", []byte(b.String()))
 
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), "expression list exceeds") {
@@ -692,27 +694,27 @@ func typeName(v any) string {
 // in this test file (each test that needs formatting uses t.Errorf).
 func sprintType(v any) string {
 	switch v.(type) {
-	case *NilExpr:
+	case *lua.NilExpr:
 		return "*lua.NilExpr"
-	case *TrueExpr:
+	case *lua.TrueExpr:
 		return "*lua.TrueExpr"
-	case *FalseExpr:
+	case *lua.FalseExpr:
 		return "*lua.FalseExpr"
-	case *NumberExpr:
+	case *lua.NumberExpr:
 		return "*lua.NumberExpr"
-	case *StringExpr:
+	case *lua.StringExpr:
 		return "*lua.StringExpr"
-	case *VarargExpr:
+	case *lua.VarargExpr:
 		return "*lua.VarargExpr"
-	case *Ident:
+	case *lua.Ident:
 		return "*lua.Ident"
-	case *BinaryExpr:
+	case *lua.BinaryExpr:
 		return "*lua.BinaryExpr"
-	case *UnaryExpr:
+	case *lua.UnaryExpr:
 		return "*lua.UnaryExpr"
-	case *CallExpr:
+	case *lua.CallExpr:
 		return "*lua.CallExpr"
-	case *TableExpr:
+	case *lua.TableExpr:
 		return "*lua.TableExpr"
 	default:
 		return "unknown"

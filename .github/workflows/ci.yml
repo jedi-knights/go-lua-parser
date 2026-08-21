@@ -69,10 +69,21 @@ jobs:
           set -o pipefail
           go test -race -count=1 -coverprofile=coverage.out -json ./... | tee test-results.json
 
-      - name: Check coverage threshold
+      - name: Convert coverage to LCOV
         run: |
-          COVERAGE=$(go tool cover -func=coverage.out | grep ^total | awk '{print $3}' | tr -d '%')
-          echo "Coverage: ${COVERAGE}%"
+          sudo apt-get install -y --quiet lcov
+          go install github.com/jandelgado/gcov2lcov@latest
+          mkdir -p coverage
+          gcov2lcov -infile=coverage.out -outfile=coverage/lcov.info
+
+      - name: Check coverage threshold
+        # Line coverage from lcov --summary — same metric the Badge workflow
+        # and the deployed HTML report use, so the gate and the badge always
+        # agree on what "coverage" means.
+        run: |
+          set -euo pipefail
+          COVERAGE=$(lcov --summary coverage/lcov.info 2>&1 | grep -i '^\s*lines' | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          echo "Line coverage: ${COVERAGE}%"
           if awk "BEGIN { exit !(${COVERAGE} < 80) }"; then
             echo "::error::Coverage ${COVERAGE}% is below the 80% threshold"
             exit 1

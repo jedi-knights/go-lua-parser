@@ -17,10 +17,12 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
+      # Default GITHUB_TOKEN suffices — read-only for public repos, and
+      # the checkout is read-only. Explicit PAT (secrets.GH_TOKEN) is kept
+      # only where a job pushes back to the repo (release, badge).
       - uses: actions/checkout@v6
-        with:
-          token: ${{ secrets.GH_TOKEN }}
 
       - uses: actions/setup-go@v6
         with:
@@ -30,15 +32,29 @@ jobs:
       - name: Check LICENSE file
         run: test -f LICENSE || (echo "::error::LICENSE file is missing" && exit 1)
 
+      # Third-party action pinned by commit SHA (per rules/owasp-top-10.md
+      # § A03). Tag comment stays for humans; bump via a PR that updates
+      # both the SHA and the comment.
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@db9de0fc1a667e1a49d2291a1a042dff081d78f6 # v9
         with:
           version: v2.13.1
+          # PAT here is only for GitHub API rate-limit headroom (the
+          # action fetches release metadata), not for repo write access.
           github-token: ${{ secrets.GH_TOKEN }}
 
   test:
-    name: Test
+    name: Test (Go ${{ matrix.go-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      # A regression on one Go version shouldn't cancel the other job.
+      fail-fast: false
+      matrix:
+        # Minimum supported (from go.mod) plus the current stable, so a
+        # stdlib divergence between them fails the PR loudly.
+        go-version: ["1.27", "stable"]
 
     permissions:
       contents: read
@@ -47,12 +63,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          token: ${{ secrets.GH_TOKEN }}
 
       - uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ matrix.go-version }}
           cache: true
 
       - name: Install CI deps (lcov + gcov2lcov)
@@ -76,9 +90,12 @@ jobs:
         # it is a one-line workflow change.
         run: make coverage-check COVERAGE_THRESHOLD=84
 
+      # Publish only from one matrix entry — otherwise both runs would
+      # try to create the same "Test Results" check and one would fail
+      # with a conflict.
       - name: Publish test results
-        if: always()
-        uses: jedi-knights/publish-test-results@v0.3.0
+        if: always() && matrix.go-version == '1.27'
+        uses: jedi-knights/publish-test-results@45d04fb53ba9f3c1d8c856923203f970bd966b7d # v0.3.0
         with:
           files: test-results.json
           check-name: Test Results

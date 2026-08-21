@@ -162,7 +162,7 @@ require-golangci-lint:
 require-gcov2lcov:
 	@command -v $(GCOV2LCOV) >/dev/null 2>&1 || { \
 		echo "Error: $(GCOV2LCOV) not found in PATH."; \
-		echo "  go install github.com/jandelgado/gcov2lcov@latest"; \
+		echo "  go install github.com/jandelgado/gcov2lcov@v1.1.1"; \
 		exit 1; \
 	}
 

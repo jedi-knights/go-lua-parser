@@ -231,6 +231,10 @@ func (p *Parser) parseTableConstructor() *TableExpr {
 	tab := &TableExpr{Position: tok.Pos}
 	for !p.check(TokenRBrace) && !p.check(TokenEOF) {
 		tab.Fields = append(tab.Fields, p.parseTableField())
+		if len(tab.Fields) >= MaxListItems {
+			p.errorAt(p.tok.Pos, "table constructor exceeds %d fields", MaxListItems)
+			break
+		}
 		if !p.consume(TokenComma) && !p.consume(TokenSemicolon) {
 			break
 		}

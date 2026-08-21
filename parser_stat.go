@@ -70,6 +70,7 @@ func (p *Parser) parseRepeat() *RepeatStat {
 }
 
 // parseIf parses `if exp then block {elseif exp then block} [else block] end`.
+// The elseif chain length is bounded by MaxListItems.
 func (p *Parser) parseIf() *IfStat {
 	tok := p.expect(TokenIf)
 	stat := &IfStat{Position: tok.Pos}
@@ -78,6 +79,10 @@ func (p *Parser) parseIf() *IfStat {
 	stat.Then = p.parseBlock()
 	for p.check(TokenElseif) {
 		stat.ElseIfs = append(stat.ElseIfs, p.parseElseIf())
+		if len(stat.ElseIfs) >= MaxListItems {
+			p.errorAt(p.tok.Pos, "elseif chain exceeds %d clauses", MaxListItems)
+			break
+		}
 	}
 	if p.consume(TokenElse) {
 		stat.Else = p.parseBlock()
@@ -159,7 +164,8 @@ func (p *Parser) parseFuncDecl() *FuncDeclStat {
 	return &FuncDeclStat{Position: tok.Pos, Name: name, Body: body}
 }
 
-// parseFuncName parses `Name {'.' Name} [':' Name]`.
+// parseFuncName parses `Name {'.' Name} [':' Name]`. The dot chain length
+// is bounded by MaxListItems.
 func (p *Parser) parseFuncName() *FuncName {
 	root := p.expect(TokenIdent)
 	name := &FuncName{
@@ -169,6 +175,10 @@ func (p *Parser) parseFuncName() *FuncName {
 	for p.consume(TokenDot) {
 		n := p.expect(TokenIdent)
 		name.Dots = append(name.Dots, &Ident{Position: n.Pos, Name: n.Value})
+		if len(name.Dots) >= MaxListItems {
+			p.errorAt(n.Pos, "function name exceeds %d components", MaxListItems)
+			break
+		}
 	}
 	if p.consume(TokenColon) {
 		n := p.expect(TokenIdent)
@@ -255,7 +265,13 @@ func (p *Parser) parseAssignOrCall() Statement {
 func (p *Parser) parseAssignRest(pos Position, first Expression) *AssignStat {
 	targets := []Expression{first}
 	for p.consume(TokenComma) {
-		targets = append(targets, p.parsePrefixExp())
+		// Nil-guard: parsePrefixExp records an error and returns nil on
+		// invalid input (e.g. `a, 1 = x`). Appending nil would produce a
+		// panicking AST — every element in Targets must be non-nil so that
+		// Walk / Pos() are safe for downstream tools.
+		if e := p.parsePrefixExp(); e != nil {
+			targets = append(targets, e)
+		}
 		if len(targets) >= MaxListItems {
 			p.errorAt(p.tok.Pos, "assignment target list exceeds %d items", MaxListItems)
 			break

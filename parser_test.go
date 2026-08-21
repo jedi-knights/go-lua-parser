@@ -680,6 +680,95 @@ func TestParseBoundsExprList(t *testing.T) {
 	}
 }
 
+func TestParseBoundsTableConstructor(t *testing.T) {
+	// Arrange — a table literal with > MaxListItems fields.
+	var b strings.Builder
+	b.WriteString("local t = {")
+	for i := 0; i < lua.MaxListItems+50; i++ {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString("1")
+	}
+	b.WriteString("}")
+
+	// Act
+	_, err := lua.Parse("t.lua", []byte(b.String()))
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "table constructor exceeds") {
+		t.Errorf("expected 'table constructor exceeds' error, got: %v", err)
+	}
+}
+
+func TestParseBoundsFuncNameDots(t *testing.T) {
+	// Arrange — a function declaration with > MaxListItems dotted components.
+	var b strings.Builder
+	b.WriteString("function a")
+	for i := 0; i < lua.MaxListItems+50; i++ {
+		b.WriteString(".b")
+	}
+	b.WriteString("() end")
+
+	// Act
+	_, err := lua.Parse("t.lua", []byte(b.String()))
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "function name exceeds") {
+		t.Errorf("expected 'function name exceeds' error, got: %v", err)
+	}
+}
+
+func TestParseBoundsElseIfChain(t *testing.T) {
+	// Arrange — an if with > MaxListItems elseif clauses.
+	var b strings.Builder
+	b.WriteString("if x == 0 then")
+	for i := 0; i < lua.MaxListItems+50; i++ {
+		b.WriteString(" elseif x == 1 then")
+	}
+	b.WriteString(" end")
+
+	// Act
+	_, err := lua.Parse("t.lua", []byte(b.String()))
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "elseif chain exceeds") {
+		t.Errorf("expected 'elseif chain exceeds' error, got: %v", err)
+	}
+}
+
+func TestParseAssignTargetsNilGuarded(t *testing.T) {
+	// Arrange — `a, 1 = x` triggers parsePrefixExp to record an error and
+	// return nil for the second target. Without the nil-guard, that nil
+	// would end up in Targets and panic on Walk / Pos().
+	src := []byte("a, 1 = x")
+
+	// Act
+	chunk, _ := lua.Parse("t.lua", src)
+
+	// Assert — the produced AST must have no nil elements in any
+	// AssignStat.Targets slice. Walk the tree; a bad append would panic
+	// in Walk before we get here.
+	if chunk == nil || chunk.Block == nil || len(chunk.Block.Statements) == 0 {
+		t.Fatal("expected a partial chunk")
+	}
+	assign, ok := chunk.Block.Statements[0].(*lua.AssignStat)
+	if !ok {
+		t.Fatalf("first stmt: got %T, want *lua.AssignStat", chunk.Block.Statements[0])
+	}
+	for i, tgt := range assign.Targets {
+		if tgt == nil {
+			t.Errorf("Targets[%d] is nil — nil-guard regressed", i)
+		}
+	}
+	// Walk must not panic.
+	lua.Walk(&noopVisitor{}, chunk)
+}
+
+type noopVisitor struct{}
+
+func (noopVisitor) Visit(lua.Node) lua.Visitor { return noopVisitor{} }
+
 // --- helpers --------------------------------------------------------------
 
 func typeName(v any) string {

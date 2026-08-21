@@ -861,6 +861,80 @@ func (c binaryOperandChecker) Visit(node lua.Node) lua.Visitor {
 	return c
 }
 
+func TestParseUnaryExprNoNilOperand(t *testing.T) {
+	// Arrange — `local x = not` (unary with no operand at EOF) previously
+	// built &UnaryExpr{Operand: nil}, which panics on any visitor that
+	// touches Operand.Pos() or type-asserts on Operand.
+	for _, src := range []string{
+		"local x = not",
+		"local y = -",
+		"local z = #",
+	} {
+		// Act
+		chunk, _ := lua.Parse("t.lua", []byte(src))
+
+		// Assert — no UnaryExpr with a nil Operand may appear in the tree,
+		// and Walk must not panic.
+		if chunk == nil {
+			t.Fatalf("%q: expected a partial chunk", src)
+		}
+		lua.Walk(unaryOperandChecker(func(u *lua.UnaryExpr) {
+			if u.Operand == nil {
+				t.Errorf("%q: UnaryExpr at %s has nil Operand", src, u.Pos())
+			}
+		}), chunk)
+	}
+}
+
+// unaryOperandChecker is a Visitor that runs a check on every UnaryExpr.
+type unaryOperandChecker func(*lua.UnaryExpr)
+
+func (c unaryOperandChecker) Visit(node lua.Node) lua.Visitor {
+	if u, ok := node.(*lua.UnaryExpr); ok {
+		c(u)
+	}
+	return c
+}
+
+func TestParseWalkDoesNotPanicOnMalformedInputs(t *testing.T) {
+	// Arrange — a set of malformed sources that historically produced
+	// AST nodes with nil child fields (IndexExpr.Index, WhileStat.Cond,
+	// parenthesized empty expression). Each source is expected to
+	// generate a parse error; the invariant under test is that Walk
+	// completes without panic on the produced chunk.
+	sources := []string{
+		"local x = a[]",       // IndexExpr with no index
+		"while do end",        // WhileStat with no condition
+		"if then end",         // IfStat with no condition
+		"repeat until",        // RepeatStat with no condition
+		"local x = ()",        // parenthesized empty expression
+		"for i = , 10 do end", // NumericForStat with no start
+		"return 1, , 2",       // ExprList with nil middle element
+		"local x = 1 + ",      // Binary with no right operand
+	}
+
+	for _, src := range sources {
+		// Act
+		chunk, _ := lua.Parse("t.lua", []byte(src))
+
+		// Assert — Parse returns a chunk even on error, and Walk must
+		// tolerate whatever partial AST resulted. If any of these
+		// panic, a nil-guard regressed somewhere.
+		if chunk == nil {
+			t.Errorf("%q: nil chunk", src)
+			continue
+		}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%q: Walk panicked: %v", src, r)
+				}
+			}()
+			lua.Walk(&noopVisitor{}, chunk)
+		}()
+	}
+}
+
 // --- helpers --------------------------------------------------------------
 
 // typeName returns the concrete type of v in *lua.<Name> form, or "<nil>"

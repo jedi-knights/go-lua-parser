@@ -83,7 +83,10 @@ jobs:
         shell: bash
 
       - name: Generate HTML coverage report
-        run: genhtml coverage/lcov.info -o htmlcov/ --quiet --ignore-errors source
+        # No --ignore-errors — a missing source file is a real problem
+        # (usually gcov2lcov emitting wrong paths); fail loudly instead
+        # of shipping a report with silent holes.
+        run: genhtml coverage/lcov.info -o htmlcov/ --quiet
         shell: bash
 
       - name: Update coverage badge

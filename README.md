@@ -33,7 +33,7 @@ Pre-1.0. The public API is subject to change until `v1.0.0`.
 
 ## Features
 
-- **LuaJIT superset accepted by default** — `goto`/`::label::`, the `\z` string escape, and `//` integer division. Turning them off is not a supported mode; downstreams that need strict-5.1 rejection layer that check on top.
+- **LuaJIT superset accepted by default** — `goto`/`::label::`, the `\z` string escape, and `//` integer division. Turning them off is not a supported mode; downstreams that need strict-5.1 rejection layer that check on top. Hex-float literals (`0x1p10`) — another LuaJIT extension — are **not** yet supported; the lexer treats them as a hex integer followed by an identifier.
 - **Position-preserving tokens and AST nodes** — every `Token` and every `Node` carries a `Position` (file, line, column, byte offset) suitable for diagnostics and instrumentation output (LCOV, SARIF, JUnit).
 - **Depth-first visitor** — `Walk` traverses any `Node`; return `nil` from `Visit` to prune a subtree, return a different `Visitor` to swap traversal state (useful for scope tracking).
 - **Panic-mode error recovery** — the parser advances past syntax errors to the next statement boundary, so a `SyntaxErrors` from `Parse` describes independent problems rather than one cascading failure.

@@ -1,9 +1,16 @@
 package lua
 
 // binaryOp describes precedence and associativity of a binary operator.
-// Precedence is a single integer per Lua 5.1 §2.5.6; a right-associative
-// operator recurses at the same precedence, a left-associative one at
-// prec+1.
+//
+// The `prec` field is an internal encoding — NOT the 1–8 scale from the
+// Lua 5.1 reference §2.5.6. Only relative ordering matters: higher
+// numbers bind tighter, and `unaryPrec` sits between the comparison level
+// and `^` on purpose so `-2^2` parses as `-(2^2)`. Do not "fix" these
+// values to match the spec's integers — the parser tests (see
+// TestParseUnaryLowerThanCaret) pin the current relationships.
+//
+// A right-associative operator recurses at the same precedence, a
+// left-associative one at prec+1.
 type binaryOp struct {
 	prec       int
 	rightAssoc bool

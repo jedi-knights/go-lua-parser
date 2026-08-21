@@ -19,6 +19,8 @@ func TestNumberExprFloat(t *testing.T) {
 		{"0xFF", 255},
 		{"0x10", 16},
 		{"0X1a", 26},
+		// Above int64 max — ParseInt would overflow; ParseUint handles it.
+		{"0xFFFFFFFFFFFFFFFF", math.MaxUint64},
 	}
 	for _, c := range cases {
 		n := &NumberExpr{Text: c.text}

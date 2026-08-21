@@ -121,7 +121,7 @@ coverage-check: $(LCOV_FILE) | require-lcov
 # Local HTML report — same generator (genhtml) that produces the deployed
 # report at https://jedi-knights.github.io/go-lua-parser/.
 test-html: $(LCOV_FILE) | require-genhtml
-	@$(GENHTML) $(LCOV_FILE) -o $(HTML_DIR)/ --quiet --ignore-errors source
+	@$(GENHTML) $(LCOV_FILE) -o $(HTML_DIR)/ --quiet
 	@echo "Report: $(HTML_DIR)/index.html"
 
 # Install the CI-only external tools (lcov + gcov2lcov). Written for the

@@ -189,9 +189,14 @@ type NumberExpr struct {
 // with optional exponent, and hexadecimal integers (`0x`/`0X` prefix) are
 // supported — the full Lua 5.1 / LuaJIT numeric grammar. Callers that need
 // a specific integer type should check IsInteger first.
+//
+// Hex literals are parsed as unsigned so values above int64 max (e.g.
+// `0xFFFFFFFFFFFFFFFF`) round-trip cleanly into float64 rather than
+// erroring with an overflow that a caller cannot distinguish from a
+// malformed literal.
 func (n *NumberExpr) Float() (float64, error) {
 	if isHexLiteral(n.Text) {
-		v, err := strconv.ParseInt(n.Text, 0, 64)
+		v, err := strconv.ParseUint(n.Text, 0, 64)
 		if err != nil {
 			return 0, err
 		}

@@ -55,39 +55,26 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install CI deps (lcov + gcov2lcov)
+        run: make install-ci-deps
+
       - name: Verify dependencies
-        run: go mod verify
+        run: make verify
 
       - name: Vet
-        run: go vet ./...
+        run: make vet
 
       - name: Build
-        run: go build ./...
+        run: make build
 
       - name: Test
-        run: |
-          set -o pipefail
-          go test -race -count=1 -coverprofile=coverage.out -json ./... | tee test-results.json
-
-      - name: Convert coverage to LCOV
-        run: |
-          sudo apt-get install -y --quiet lcov
-          go install github.com/jandelgado/gcov2lcov@latest
-          mkdir -p coverage
-          gcov2lcov -infile=coverage.out -outfile=coverage/lcov.info
+        run: make test-ci
 
       - name: Check coverage threshold
-        # Line coverage from lcov --summary — same metric the Badge workflow
-        # and the deployed HTML report use, so the gate and the badge always
-        # agree on what "coverage" means.
-        run: |
-          set -euo pipefail
-          COVERAGE=$(lcov --summary coverage/lcov.info 2>&1 | grep -i '^\s*lines' | grep -oE '[0-9]+\.[0-9]+' | head -1)
-          echo "Line coverage: ${COVERAGE}%"
-          if awk "BEGIN { exit !(${COVERAGE} < 84) }"; then
-            echo "::error::Coverage ${COVERAGE}% is below the 84% threshold"
-            exit 1
-          fi
+        # Delegates to the same target developers can run locally. The
+        # threshold lives here (single source of truth for CI) so bumping
+        # it is a one-line workflow change.
+        run: make coverage-check COVERAGE_THRESHOLD=84
 
       - name: Publish test results
         if: always()

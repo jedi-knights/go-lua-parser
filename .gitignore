@@ -4,6 +4,8 @@
 *.dll
 *.so
 *.dylib
+bin/
+dist/
 
 # Test binaries
 *.test
@@ -12,8 +14,13 @@
 *.out
 coverage.out
 coverage.html
+coverage.xml
 coverage/
 htmlcov/
+
+# Go profiling artifacts (from `go test -cpuprofile=...` / -memprofile / -blockprofile)
+*.prof
+*.pprof
 
 # Test result artifacts (CI-generated)
 test-results.json
@@ -22,10 +29,21 @@ test-results.json
 go.work
 go.work.sum
 
+# Environment / local secrets — never commit
+.env
+.env.*
+!.env.example
+
 # Editor / IDE
 .idea/
 .vscode/
 *.swp
+*.swo
+*~
 
-# macOS
+# Claude Code workspace directory (per-session state, not portable)
+.claude/
+
+# OS metadata
 .DS_Store
+Thumbs.db

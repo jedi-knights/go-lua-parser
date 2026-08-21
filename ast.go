@@ -73,21 +73,24 @@ type DoStat struct {
 	Body     *Block
 }
 
-// WhileStat is `while cond do ... end`.
+// WhileStat is `while cond do ... end`. Cond is non-nil on valid input
+// but may be nil during error recovery (e.g. `while do end`).
 type WhileStat struct {
 	Position Position
 	Cond     Expression
 	Body     *Block
 }
 
-// RepeatStat is `repeat ... until cond`.
+// RepeatStat is `repeat ... until cond`. Cond is non-nil on valid input
+// but may be nil during error recovery.
 type RepeatStat struct {
 	Position Position
 	Body     *Block
 	Cond     Expression
 }
 
-// IfStat is `if cond then ... elseif ... else ... end`.
+// IfStat is `if cond then ... elseif ... else ... end`. Cond is non-nil
+// on valid input but may be nil during error recovery.
 type IfStat struct {
 	Position Position
 	Cond     Expression
@@ -96,20 +99,23 @@ type IfStat struct {
 	Else     *Block // nil if there is no else branch
 }
 
-// ElseIf is one `elseif` clause of an IfStat.
+// ElseIf is one `elseif` clause of an IfStat. Cond is non-nil on valid
+// input but may be nil during error recovery.
 type ElseIf struct {
 	Position Position
 	Cond     Expression
 	Body     *Block
 }
 
-// NumericForStat is `for name = start, stop [, step] do ... end`.
+// NumericForStat is `for name = start, stop [, step] do ... end`. Start
+// and Stop are non-nil on valid input but may be nil during error
+// recovery; Step is nil when the source omits the third form parameter.
 type NumericForStat struct {
 	Position Position
 	Name     *Ident
 	Start    Expression
 	Stop     Expression
-	Step     Expression // nil if omitted
+	Step     Expression // nil when omitted; also may be nil during error recovery
 	Body     *Block
 }
 
@@ -242,7 +248,9 @@ type Ident struct {
 	Name     string
 }
 
-// IndexExpr is `object[index]`.
+// IndexExpr is `object[index]`. Both fields are non-nil on valid input
+// but Index may be nil during error recovery (e.g. `a[]`); walkers must
+// tolerate this (Walk's top-level nil guard already does).
 type IndexExpr struct {
 	Position Position
 	Object   Expression

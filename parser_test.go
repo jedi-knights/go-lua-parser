@@ -914,14 +914,15 @@ func TestParseWalkDoesNotPanicOnMalformedInputs(t *testing.T) {
 	// generate a parse error; the invariant under test is that Walk
 	// completes without panic on the produced chunk.
 	sources := []string{
-		"local x = a[]",       // IndexExpr with no index
-		"while do end",        // WhileStat with no condition
-		"if then end",         // IfStat with no condition
-		"repeat until",        // RepeatStat with no condition
-		"local x = ()",        // parenthesized empty expression
-		"for i = , 10 do end", // NumericForStat with no start
-		"return 1, , 2",       // ExprList with nil middle element
-		"local x = 1 + ",      // Binary with no right operand
+		"local x = a[]",             // IndexExpr with no index
+		"while do end",              // WhileStat with no condition
+		"if then end",               // IfStat with no condition
+		"if x then elseif then end", // ElseIf with no condition
+		"repeat until",              // RepeatStat with no condition
+		"local x = ()",              // parenthesized empty expression
+		"for i = , 10 do end",       // NumericForStat with no start
+		"return 1, , 2",             // ExprList with nil middle element
+		"local x = 1 + ",            // Binary with no right operand
 	}
 
 	for _, src := range sources {

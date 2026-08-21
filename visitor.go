@@ -12,6 +12,11 @@ type Visitor interface {
 
 // Walk traverses an AST rooted at node in depth-first order, calling
 // v.Visit on each node.
+//
+// Walk itself is safe for concurrent use on the same Chunk provided each
+// call receives its own Visitor. Concurrent use of the same Visitor
+// across goroutines requires that Visitor to be safe for concurrent
+// Visit calls — Walk provides no synchronization.
 func Walk(v Visitor, node Node) {
 	if node == nil {
 		return

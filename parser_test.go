@@ -505,6 +505,29 @@ func TestParseVarargExpr(t *testing.T) {
 	}
 }
 
+// --- call arg sugars ------------------------------------------------------
+
+func TestParseCallWithLongStringSugar(t *testing.T) {
+	// Long-bracket string as a call argument (no parens): `require [[mod]]`.
+	// The lexer emits TokenString for both short and long strings, so this
+	// exercises the sugar path end-to-end.
+	e := firstExpr(t, "require [[mod]]")
+	c, ok := e.(*CallExpr)
+	if !ok {
+		t.Fatalf("expr = %T, want *CallExpr", e)
+	}
+	if len(c.Args) != 1 {
+		t.Fatalf("args = %d, want 1", len(c.Args))
+	}
+	s, ok := c.Args[0].(*StringExpr)
+	if !ok {
+		t.Fatalf("arg = %T, want *StringExpr", c.Args[0])
+	}
+	if s.Value != "mod" {
+		t.Errorf("arg value = %q, want %q", s.Value, "mod")
+	}
+}
+
 // --- error cases ----------------------------------------------------------
 
 func TestParseErrorMissingEnd(t *testing.T) {
@@ -519,6 +542,51 @@ func TestParseErrorBadStatement(t *testing.T) {
 	_, err := Parse("t.lua", []byte("1 = 2"))
 	if err == nil {
 		t.Fatal("expected error for invalid assignment target")
+	}
+}
+
+// --- error recovery -------------------------------------------------------
+
+func TestParseRecoveryAfterBadStatement(t *testing.T) {
+	// First statement is nonsense (two identifiers, no operator). The parser
+	// should record an error, sync to the next statement boundary (`local`),
+	// and still return the local assignment as a valid AST node.
+	src := "xx yy = 1\nlocal z = 2"
+	chunk, err := Parse("t.lua", []byte(src))
+	if err == nil {
+		t.Fatal("expected an error from bad first statement")
+	}
+	if chunk == nil || chunk.Block == nil {
+		t.Fatal("expected non-nil chunk and block despite errors")
+	}
+	found := false
+	for _, s := range chunk.Block.Statements {
+		if la, ok := s.(*LocalAssignStat); ok {
+			if len(la.Names) == 1 && la.Names[0].Name == "z" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected recovery to yield `local z = 2`, got %d statements", len(chunk.Block.Statements))
+	}
+}
+
+func TestParseRecoveryDoesNotCascade(t *testing.T) {
+	// Two independent bad statements should produce roughly two errors —
+	// not a runaway cascade. We check that the count is bounded, not exact,
+	// because expect() calls can inflate the count slightly.
+	src := "xx yy\nlocal z = 2\naa bb"
+	_, err := Parse("t.lua", []byte(src))
+	if err == nil {
+		t.Fatal("expected errors")
+	}
+	errs, ok := err.(SyntaxErrors)
+	if !ok {
+		t.Fatalf("err = %T, want SyntaxErrors", err)
+	}
+	if len(errs) > 6 {
+		t.Errorf("cascade suspected: %d errors from 2 bad statements: %v", len(errs), errs)
 	}
 }
 

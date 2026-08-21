@@ -104,9 +104,32 @@ func (p *Parser) atBlockEnd() bool {
 	return p.at(TokenEOF, TokenEnd, TokenElse, TokenElseif, TokenUntil)
 }
 
-// parseBlock parses statements until a block terminator. If parseStatement
-// fails to consume progress on a bad token, parseBlock advances one token
-// to prevent an infinite loop.
+// atSyncPoint reports whether the current token is a plausible statement
+// boundary — a block terminator, a semicolon, or the start of a new
+// statement. Used by sync() to recover after a parse error.
+func (p *Parser) atSyncPoint() bool {
+	return p.at(
+		TokenEOF, TokenEnd, TokenElse, TokenElseif, TokenUntil,
+		TokenSemicolon, TokenDo, TokenWhile, TokenRepeat,
+		TokenIf, TokenFor, TokenFunction, TokenLocal,
+		TokenBreak, TokenGoto, TokenDoubleColon, TokenReturn,
+	)
+}
+
+// sync advances tokens until the current position is a statement boundary.
+// This is textbook panic-mode recovery: after a parse error we skip the
+// tail of the malformed construct so that subsequent errors describe
+// independent problems rather than cascading from the same failure.
+func (p *Parser) sync() {
+	for !p.atSyncPoint() {
+		p.advance()
+	}
+}
+
+// parseBlock parses statements until a block terminator. On a failed
+// statement parse it advances past the offending token (if no progress was
+// made) and then syncs to the next statement boundary, so a single bad
+// statement does not cause a cascade of errors on the rest of the block.
 func (p *Parser) parseBlock() *Block {
 	block := &Block{Position: p.tok.Pos}
 	for !p.atBlockEnd() {
@@ -126,6 +149,7 @@ func (p *Parser) parseBlock() *Block {
 		if p.tok.Pos.Offset == before {
 			p.advance()
 		}
+		p.sync()
 	}
 	return block
 }

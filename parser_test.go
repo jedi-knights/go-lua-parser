@@ -769,41 +769,13 @@ func (noopVisitor) Visit(lua.Node) lua.Visitor { return noopVisitor{} }
 
 // --- helpers --------------------------------------------------------------
 
+// typeName returns the concrete type of v in *lua.<Name> form, or "<nil>"
+// for a nil interface. fmt.Sprintf("%T", ...) already produces the same
+// string; the helper is here purely so call sites read as `typeName(e)`
+// rather than the noisier format-string form.
 func typeName(v any) string {
 	if v == nil {
 		return "<nil>"
 	}
-	// Reflection-free type name: use %T formatting.
-	return sprintType(v)
-}
-
-// sprintType uses fmt indirectly via a small map so we avoid importing fmt
-// in this test file (each test that needs formatting uses t.Errorf).
-func sprintType(v any) string {
-	switch v.(type) {
-	case *lua.NilExpr:
-		return "*lua.NilExpr"
-	case *lua.TrueExpr:
-		return "*lua.TrueExpr"
-	case *lua.FalseExpr:
-		return "*lua.FalseExpr"
-	case *lua.NumberExpr:
-		return "*lua.NumberExpr"
-	case *lua.StringExpr:
-		return "*lua.StringExpr"
-	case *lua.VarargExpr:
-		return "*lua.VarargExpr"
-	case *lua.Ident:
-		return "*lua.Ident"
-	case *lua.BinaryExpr:
-		return "*lua.BinaryExpr"
-	case *lua.UnaryExpr:
-		return "*lua.UnaryExpr"
-	case *lua.CallExpr:
-		return "*lua.CallExpr"
-	case *lua.TableExpr:
-		return "*lua.TableExpr"
-	default:
-		return "unknown"
-	}
+	return fmt.Sprintf("%T", v)
 }

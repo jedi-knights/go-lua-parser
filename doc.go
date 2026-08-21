@@ -10,6 +10,7 @@
 //
 // # Status
 //
-// Pre-1.0. The lexer is complete; the parser is under construction. Public
-// API is subject to change until v1.
+// Pre-1.0. The lexer and parser are complete for Lua 5.1 + the LuaJIT
+// superset, with panic-mode error recovery and a depth-first Visitor.
+// The public API is subject to change until v1.0.0 is tagged.
 package lua

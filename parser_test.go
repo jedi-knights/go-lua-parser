@@ -1,7 +1,10 @@
 package lua
 
 import (
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 )
 
 // mustParse parses src and fails the test if lexing or parsing reports any
@@ -587,6 +590,91 @@ func TestParseRecoveryDoesNotCascade(t *testing.T) {
 	}
 	if len(errs) > 6 {
 		t.Errorf("cascade suspected: %d errors from 2 bad statements: %v", len(errs), errs)
+	}
+}
+
+func TestParseRecoveryOnLexerErrorTerminates(t *testing.T) {
+	// Arrange — a source with an invalid byte at statement position. Before
+	// TokenError was a sync point, parseBlock would drive sync() through
+	// every subsequent character before reaching EOF.
+	src := []byte("local x = 1\n\x00\x00\x00\nlocal y = 2")
+
+	// Act — should return promptly, not hang.
+	done := make(chan struct{})
+	var chunk *Chunk
+	var err error
+	go func() {
+		chunk, err = Parse("t.lua", src)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Parse did not terminate on invalid bytes")
+	}
+
+	// Assert — errors surfaced, chunk still returned, both good statements
+	// visible after recovery.
+	if err == nil {
+		t.Fatal("expected errors on invalid bytes")
+	}
+	if chunk == nil || chunk.Block == nil {
+		t.Fatal("expected a partial chunk")
+	}
+	if got := len(chunk.Block.Statements); got < 2 {
+		t.Errorf("expected both good statements to survive recovery, got %d: %+v", got, chunk.Block.Statements)
+	}
+}
+
+func TestParseBoundsParamList(t *testing.T) {
+	// Arrange — a function decl with > MaxListItems parameters.
+	var b strings.Builder
+	b.WriteString("local f = function(")
+	for i := 0; i < MaxListItems+50; i++ {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		fmt.Fprintf(&b, "p%d", i)
+	}
+	b.WriteString(") end")
+
+	// Act
+	chunk, err := Parse("t.lua", []byte(b.String()))
+
+	// Assert — error mentions the cap; params are truncated to the cap.
+	if err == nil {
+		t.Fatal("expected an error for oversized param list")
+	}
+	if !strings.Contains(err.Error(), "parameter list exceeds") {
+		t.Errorf("expected 'parameter list exceeds' in error, got: %v", err)
+	}
+	assign, ok := chunk.Block.Statements[0].(*LocalAssignStat)
+	if !ok {
+		t.Fatalf("unexpected first stmt: %T", chunk.Block.Statements[0])
+	}
+	fn := assign.Values[0].(*FunctionExpr)
+	if len(fn.Params) > MaxListItems {
+		t.Errorf("params not capped: got %d, want <= %d", len(fn.Params), MaxListItems)
+	}
+}
+
+func TestParseBoundsExprList(t *testing.T) {
+	// Arrange — a return statement with > MaxListItems expressions.
+	var b strings.Builder
+	b.WriteString("return ")
+	for i := 0; i < MaxListItems+50; i++ {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString("1")
+	}
+
+	// Act
+	_, err := Parse("t.lua", []byte(b.String()))
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "expression list exceeds") {
+		t.Errorf("expected 'expression list exceeds' error, got: %v", err)
 	}
 }
 

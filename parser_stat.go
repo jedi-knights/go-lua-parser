@@ -138,6 +138,10 @@ func (p *Parser) parseGenericFor(pos Position, first Token) *GenericForStat {
 	for p.consume(TokenComma) {
 		name := p.expect(TokenIdent)
 		stat.Names = append(stat.Names, &Ident{Position: name.Pos, Name: name.Value})
+		if len(stat.Names) >= MaxListItems {
+			p.errorAt(name.Pos, "generic-for name list exceeds %d items", MaxListItems)
+			break
+		}
 	}
 	p.expect(TokenIn)
 	stat.Values = p.parseExprList()
@@ -200,6 +204,10 @@ func (p *Parser) parseLocalAssign(pos Position) *LocalAssignStat {
 	for p.consume(TokenComma) {
 		n := p.expect(TokenIdent)
 		stat.Names = append(stat.Names, &Ident{Position: n.Pos, Name: n.Value})
+		if len(stat.Names) >= MaxListItems {
+			p.errorAt(n.Pos, "local name list exceeds %d items", MaxListItems)
+			break
+		}
 	}
 	if p.consume(TokenAssign) {
 		stat.Values = p.parseExprList()
@@ -248,17 +256,26 @@ func (p *Parser) parseAssignRest(pos Position, first Expression) *AssignStat {
 	targets := []Expression{first}
 	for p.consume(TokenComma) {
 		targets = append(targets, p.parsePrefixExp())
+		if len(targets) >= MaxListItems {
+			p.errorAt(p.tok.Pos, "assignment target list exceeds %d items", MaxListItems)
+			break
+		}
 	}
 	p.expect(TokenAssign)
 	values := p.parseExprList()
 	return &AssignStat{Position: pos, Targets: targets, Values: values}
 }
 
-// parseExprList parses `exp {',' exp}`.
+// parseExprList parses `exp {',' exp}`. Bounded by MaxListItems to prevent
+// unbounded allocation on pathological user input.
 func (p *Parser) parseExprList() []Expression {
 	exprs := []Expression{p.parseExpr()}
 	for p.consume(TokenComma) {
 		exprs = append(exprs, p.parseExpr())
+		if len(exprs) >= MaxListItems {
+			p.errorAt(p.tok.Pos, "expression list exceeds %d items", MaxListItems)
+			return exprs
+		}
 	}
 	return exprs
 }

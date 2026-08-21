@@ -32,6 +32,13 @@ func (es SyntaxErrors) Error() string {
 	}
 	msgs := make([]string, len(es))
 	for i, e := range es {
+		if e == nil {
+			// Defensive: Parse never inserts a nil into SyntaxErrors,
+			// but a caller constructing SyntaxErrors{nil} manually
+			// should not panic on Error().
+			msgs[i] = "<nil syntax error>"
+			continue
+		}
 		msgs[i] = e.Error()
 	}
 	return strings.Join(msgs, "\n")

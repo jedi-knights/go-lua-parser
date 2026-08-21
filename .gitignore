@@ -12,7 +12,7 @@
 *.out
 coverage.out
 coverage.html
-coverage.xml
+coverage/
 htmlcov/
 
 # Test result artifacts (CI-generated)

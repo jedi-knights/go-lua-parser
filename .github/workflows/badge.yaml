@@ -4,6 +4,10 @@ name: Badge
 # separate workflow (not a job in ci.yml) avoids a push race: if this job
 # committed to main on the same push trigger as semantic-release, the
 # version-bump push would be rejected with "fetch first".
+#
+# Approach mirrors jedi-knights/yoda.nvim: run tests, convert Go coverage
+# to LCOV, generate the HTML report with genhtml, hand-roll the shields.io
+# badge with tiered colors, and deploy the report to GitHub Pages.
 
 on:
   workflow_run:
@@ -11,6 +15,10 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   badge:
@@ -39,30 +47,46 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Generate Coverage Report
+      - name: Run tests and collect coverage
+        id: coverage
         run: |
-          go install github.com/boumenot/gocover-cobertura@v1.4.0
+          set -euo pipefail
           go test -race -count=1 -coverprofile=coverage.out ./...
-          gocover-cobertura < coverage.out | grep -v '<!DOCTYPE' > coverage.xml
+          PCT="$(go tool cover -func=coverage.out | grep ^total | awk '{print $3}' | tr -d '%')"
+          echo "coverage-percentage=${PCT}" >> "$GITHUB_OUTPUT"
         shell: bash
 
-      - name: Generate HTML Coverage Report
+      - name: Convert coverage to LCOV
         run: |
-          dotnet tool install --global dotnet-reportgenerator-globaltool
-          export PATH="$HOME/.dotnet/tools:$PATH"
-          reportgenerator \
-            -reports:coverage.xml \
-            -targetdir:htmlcov \
-            -reporttypes:Html \
-            -title:"go-lua-parser Coverage"
+          go install github.com/jandelgado/gcov2lcov@latest
+          mkdir -p coverage
+          gcov2lcov -infile=coverage.out -outfile=coverage/lcov.info
         shell: bash
 
-      - name: Update Coverage Badge
-        uses: jedi-knights/coverage-badge@v0
-        with:
-          coverage-file: coverage.xml
-          badge-label: Coverage
-          report-url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/?v=${{ github.run_number }}
+      - name: Generate HTML coverage report
+        run: |
+          sudo apt-get install -y --quiet lcov
+          genhtml coverage/lcov.info -o htmlcov/ --quiet --ignore-errors source
+        shell: bash
+
+      - name: Update coverage badge
+        run: |
+          PCT="${{ steps.coverage.outputs.coverage-percentage }}"
+          if [ -z "$PCT" ]; then
+            echo "No coverage percentage output, skipping badge update"
+            exit 0
+          fi
+          PCT_INT="${PCT%.*}"
+          if [ "$PCT_INT" -ge 90 ]; then COLOR="brightgreen"
+          elif [ "$PCT_INT" -ge 80 ]; then COLOR="green"
+          elif [ "$PCT_INT" -ge 70 ]; then COLOR="yellow"
+          elif [ "$PCT_INT" -ge 60 ]; then COLOR="orange"
+          else COLOR="red"
+          fi
+          URL_PCT=$(printf '%s' "$PCT" | sed 's/\./%2E/g')
+          # Match up to either " (HTML img src) or ) (markdown link close)
+          sed -i "s|img\.shields\.io/badge/Coverage-[^\")]*|img.shields.io/badge/Coverage-${URL_PCT}%25-${COLOR}|" README.md
+        shell: bash
 
       - name: Commit badge
         run: |
@@ -71,14 +95,14 @@ jobs:
           git diff --quiet README.md || (git add README.md && git commit -m "chore: update coverage badge [skip ci]" && git push)
         shell: bash
 
-      - name: Upload Pages Artifact
-        if: always()
+      - name: Upload Pages artifact
+        if: success()
         id: upload-artifact
         uses: actions/upload-pages-artifact@v5.0.0
         with:
           path: htmlcov/
 
       - name: Deploy to GitHub Pages
-        if: always() && steps.upload-artifact.outcome == 'success'
+        if: success() && steps.upload-artifact.outcome == 'success'
         id: deploy
         uses: actions/deploy-pages@v5

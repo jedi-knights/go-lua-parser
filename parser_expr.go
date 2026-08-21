@@ -272,7 +272,9 @@ func (p *Parser) parseFunctionBody(pos Position) *FunctionExpr {
 	return fn
 }
 
-// parseParamList parses `namelist [',' '...'] | '...'`.
+// parseParamList parses `namelist [',' '...'] | '...'`. The list length
+// is bounded by MaxListItems to prevent an unbounded allocation on
+// pathological user input.
 func (p *Parser) parseParamList(fn *FunctionExpr) {
 	for {
 		if p.check(TokenEllipsis) {
@@ -282,6 +284,10 @@ func (p *Parser) parseParamList(fn *FunctionExpr) {
 		}
 		name := p.expect(TokenIdent)
 		fn.Params = append(fn.Params, &Ident{Position: name.Pos, Name: name.Value})
+		if len(fn.Params) >= MaxListItems {
+			p.errorAt(name.Pos, "parameter list exceeds %d items", MaxListItems)
+			return
+		}
 		if !p.consume(TokenComma) {
 			return
 		}

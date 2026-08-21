@@ -2,6 +2,14 @@ package lua
 
 import "fmt"
 
+// MaxListItems is the upper bound on the number of items the parser will
+// accept in any comma-separated list — parameters, expression lists,
+// local-assign names, generic-for names, assignment targets. Prevents an
+// unbounded loop on user-supplied source per the algorithmic-complexity
+// bounded-loops rule. Chosen to match Lua 5.1's MAXVARS (200) with a small
+// buffer for the LuaJIT superset.
+const MaxListItems = 250
+
 // Parser converts a token stream from a Lexer into an AST.
 //
 // The parser accepts the LuaJIT superset of Lua 5.1: `goto`/`::label::`,
@@ -105,11 +113,15 @@ func (p *Parser) atBlockEnd() bool {
 }
 
 // atSyncPoint reports whether the current token is a plausible statement
-// boundary — a block terminator, a semicolon, or the start of a new
-// statement. Used by sync() to recover after a parse error.
+// boundary — a block terminator, a semicolon, the start of a new
+// statement, or a lexer error token. Used by sync() to recover after a
+// parse error. TokenError is treated as a sync point so a run of invalid
+// bytes doesn't force sync() to scan the entire tail of the input before
+// reaching EOF; the caller reports it, records an error, and moves on.
 func (p *Parser) atSyncPoint() bool {
 	return p.at(
-		TokenEOF, TokenEnd, TokenElse, TokenElseif, TokenUntil,
+		TokenEOF, TokenError,
+		TokenEnd, TokenElse, TokenElseif, TokenUntil,
 		TokenSemicolon, TokenDo, TokenWhile, TokenRepeat,
 		TokenIf, TokenFor, TokenFunction, TokenLocal,
 		TokenBreak, TokenGoto, TokenDoubleColon, TokenReturn,

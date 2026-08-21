@@ -1,5 +1,7 @@
 package lua
 
+import "strconv"
+
 // Node is the common interface for all AST nodes. Every node reports the
 // position of its first token so callers can produce diagnostics.
 type Node interface {
@@ -176,11 +178,47 @@ type FalseExpr struct{ Position Position }
 // VarargExpr is the `...` expression usable inside a vararg function.
 type VarargExpr struct{ Position Position }
 
-// NumberExpr is a numeric literal. Text is the raw source; callers decode
-// it to float or int as they need.
+// NumberExpr is a numeric literal. Text is the raw source; use Float or
+// IsInteger to decode.
 type NumberExpr struct {
 	Position Position
 	Text     string
+}
+
+// Float decodes the literal as a float64. Decimal integers, decimal floats
+// with optional exponent, and hexadecimal integers (`0x`/`0X` prefix) are
+// supported — the full Lua 5.1 / LuaJIT numeric grammar. Callers that need
+// a specific integer type should check IsInteger first.
+func (n *NumberExpr) Float() (float64, error) {
+	if isHexLiteral(n.Text) {
+		v, err := strconv.ParseInt(n.Text, 0, 64)
+		if err != nil {
+			return 0, err
+		}
+		return float64(v), nil
+	}
+	return strconv.ParseFloat(n.Text, 64)
+}
+
+// IsInteger reports whether the literal has no fractional or exponent
+// component and can therefore be represented as an integer without loss.
+// Hex literals (`0xFF`, `0xE`) are always integers under Lua 5.1 rules —
+// note that `E` inside a hex literal is a digit, not an exponent marker.
+func (n *NumberExpr) IsInteger() bool {
+	if isHexLiteral(n.Text) {
+		return true
+	}
+	for i := 0; i < len(n.Text); i++ {
+		c := n.Text[i]
+		if c == '.' || c == 'e' || c == 'E' {
+			return false
+		}
+	}
+	return true
+}
+
+func isHexLiteral(text string) bool {
+	return len(text) >= 2 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X')
 }
 
 // StringExpr is a string literal. Value is the decoded contents (escape

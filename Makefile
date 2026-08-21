@@ -117,8 +117,12 @@ install-ci-deps:
 	@sudo apt-get install -y --quiet lcov
 	@$(GO) install github.com/jandelgado/gcov2lcov@latest
 
+# Remove everything the toolchain produces locally. Does not touch user
+# state (.env, .claude/, editor swap files) — those live in .gitignore
+# but are the user's business, not ours.
 clean:
-	@rm -rf $(COVERAGE_OUT) $(LCOV_DIR) $(HTML_DIR) $(TEST_RESULTS_JSON)
+	@rm -rf $(COVERAGE_OUT) $(LCOV_DIR) $(HTML_DIR) $(TEST_RESULTS_JSON) coverage.xml
+	@rm -f *.prof *.pprof
 
 # Tool prerequisites — fail with an actionable install hint rather than a
 # cryptic "command not found". Used as order-only prerequisites (`|`) so

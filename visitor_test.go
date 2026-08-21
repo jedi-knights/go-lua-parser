@@ -54,6 +54,8 @@ func kindName(n lua.Node) string {
 }
 
 func TestWalkChunkAndBlock(t *testing.T) {
+	// Arrange — a chunk with one LocalAssignStat and a return that
+	// references the declared binding.
 	pos := lua.Position{Filename: "t.lua", Line: 1, Column: 1}
 	chunk := &lua.Chunk{
 		Filename: "t.lua",
@@ -72,12 +74,15 @@ func TestWalkChunkAndBlock(t *testing.T) {
 			},
 		},
 	}
+
+	// Act
 	r := &recorder{}
 	lua.Walk(r, chunk)
+
+	// Assert — LocalAssignStat's declared names are walked before its
+	// values, so the first Ident is the binding `x` and the second is the
+	// reference in the return statement.
 	got := r.visited
-	// LocalAssignStat's declared names are walked before its values, so the
-	// first Ident is the binding `x` and the second is the reference in the
-	// return statement.
 	want := []string{"Chunk", "Block", "LocalAssignStat", "Ident", "NumberExpr", "ReturnStat", "Ident"}
 	if len(got) != len(want) {
 		t.Fatalf("visited %d nodes, want %d: %v", len(got), len(want), got)
@@ -261,6 +266,7 @@ func (c *nodeKindCounter) Visit(node lua.Node) lua.Visitor {
 }
 
 func TestWalkIfAndBinary(t *testing.T) {
+	// Arrange — an if with a comparison condition and empty body.
 	pos := lua.Position{Filename: "t.lua", Line: 1, Column: 1}
 	ifStat := &lua.IfStat{
 		Position: pos,
@@ -272,9 +278,12 @@ func TestWalkIfAndBinary(t *testing.T) {
 		},
 		Then: &lua.Block{Position: pos},
 	}
+
+	// Act
 	r := &recorder{}
 	lua.Walk(r, ifStat)
-	// If-then subtree: IfStat, BinaryExpr, Ident, NumberExpr, Block.
+
+	// Assert — If-then subtree: IfStat, BinaryExpr, Ident, NumberExpr, Block.
 	want := []string{"IfStat", "BinaryExpr", "Ident", "NumberExpr", "Block"}
 	if len(r.visited) != len(want) {
 		t.Fatalf("visited = %v, want %v", r.visited, want)
@@ -287,8 +296,13 @@ func TestWalkIfAndBinary(t *testing.T) {
 }
 
 func TestWalkNilNode(t *testing.T) {
+	// Arrange
 	r := &recorder{}
+
+	// Act
 	lua.Walk(r, nil)
+
+	// Assert
 	if len(r.visited) != 0 {
 		t.Errorf("walking nil should visit nothing, got %v", r.visited)
 	}
@@ -306,10 +320,15 @@ func (s *stopVisitor) Visit(node lua.Node) lua.Visitor {
 }
 
 func TestWalkStopsWhenVisitReturnsNil(t *testing.T) {
+	// Arrange — a chunk and a visitor that returns nil on first Visit.
 	pos := lua.Position{Filename: "t.lua"}
 	chunk := &lua.Chunk{Filename: "t.lua", Block: &lua.Block{Position: pos}}
 	v := &stopVisitor{}
+
+	// Act
 	lua.Walk(v, chunk)
+
+	// Assert — Walk visits root, sees nil, does not descend.
 	if v.count != 1 {
 		t.Errorf("visited %d nodes, want 1 (stopped at root)", v.count)
 	}

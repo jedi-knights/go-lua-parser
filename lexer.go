@@ -109,6 +109,10 @@ func (l *Lexer) errorf(pos Position, format string, args ...any) Token {
 
 // --- whitespace and comments ----------------------------------------------
 
+// Bounded by len(l.src): every iteration either advances the offset by
+// one (isSpace branch) or calls skipComment which advances at least two
+// bytes. Terminates when the offset reaches EOF or hits a non-skippable
+// byte.
 func (l *Lexer) skipWhitespaceAndComments() {
 	for !l.eof() {
 		c := l.peek()

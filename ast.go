@@ -302,11 +302,13 @@ type TableExpr struct {
 
 // TableField is one entry in a table constructor. Exactly one of Key or
 // KeyName is set for keyed entries; positional entries leave both zero.
+// Value is always non-nil when produced by the parser — the nil-check in
+// walkTableFields is defensive for manually-constructed values.
 type TableField struct {
 	Position Position
 	Key      Expression // set for `[expr] = value` form
 	KeyName  string     // set for `name = value` form
-	Value    Expression
+	Value    Expression // non-nil for parser-produced fields
 }
 
 // --- interface satisfaction -----------------------------------------------

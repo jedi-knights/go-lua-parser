@@ -23,6 +23,10 @@ const unaryPrec = 8
 
 // binaryOps maps token kinds to their operator info. `//` (LuaJIT integer
 // division) is grouped with `* / %` at the multiplicative level.
+//
+// Precedence level 4 is intentionally unused — the jump from 3 (comparisons)
+// to 5 (concat) is a deliberate gap. Do not fill 4 without re-deriving the
+// relationships pinned by TestParseUnaryLowerThanCaret and friends.
 var binaryOps = map[TokenKind]binaryOp{
 	TokenOr:          {1, false, "or"},
 	TokenAnd:         {2, false, "and"},

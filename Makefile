@@ -35,8 +35,8 @@ help:
 	@echo "go-lua-parser development commands"
 	@echo ""
 	@echo "Quality:"
-	@echo "  make lint            - Run golangci-lint (matches CI)"
-	@echo "  make vet             - Run go vet"
+	@echo "  make lint            - Run go vet + golangci-lint (matches CI)"
+	@echo "  make vet             - Run go vet only"
 	@echo "  make verify          - Verify go.mod checksums"
 	@echo ""
 	@echo "Testing:"
@@ -54,7 +54,11 @@ help:
 	@echo "  make clean           - Remove coverage artifacts"
 	@echo "  make help            - Show this help"
 
-lint: require-golangci-lint
+# Run both linters. go vet catches a handful of nil-pointer/format checks
+# with sharper output than golangci-lint's govet integration, so both run
+# — the marginal cost is ~1s and the two output blocks are easier to read
+# than one merged report.
+lint: vet require-golangci-lint
 	@$(GOLANGCI_LINT) run ./...
 
 vet:

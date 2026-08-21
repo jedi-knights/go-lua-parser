@@ -283,11 +283,19 @@ func (p *Parser) parseAssignRest(pos Position, first Expression) *AssignStat {
 }
 
 // parseExprList parses `exp {',' exp}`. Bounded by MaxListItems to prevent
-// unbounded allocation on pathological user input.
+// unbounded allocation on pathological user input. Nil results from
+// parseExpr (invalid input during error recovery) are dropped so the
+// returned slice never contains a nil element — see parseAssignRest's
+// identical guard for Targets.
 func (p *Parser) parseExprList() []Expression {
-	exprs := []Expression{p.parseExpr()}
+	var exprs []Expression
+	if e := p.parseExpr(); e != nil {
+		exprs = append(exprs, e)
+	}
 	for p.consume(TokenComma) {
-		exprs = append(exprs, p.parseExpr())
+		if e := p.parseExpr(); e != nil {
+			exprs = append(exprs, e)
+		}
 		if len(exprs) >= MaxListItems {
 			p.errorAt(p.tok.Pos, "expression list exceeds %d items", MaxListItems)
 			return exprs

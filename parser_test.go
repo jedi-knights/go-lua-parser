@@ -767,6 +767,100 @@ type noopVisitor struct{}
 
 func (noopVisitor) Visit(lua.Node) lua.Visitor { return noopVisitor{} }
 
+func TestParseBoundsLocalNames(t *testing.T) {
+	// Arrange — a local declaration with > MaxListItems names.
+	var b strings.Builder
+	b.WriteString("local a")
+	for i := 0; i < lua.MaxListItems+50; i++ {
+		fmt.Fprintf(&b, ", n%d", i)
+	}
+	b.WriteString(" = 1")
+
+	// Act
+	_, err := lua.Parse("t.lua", []byte(b.String()))
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "local name list exceeds") {
+		t.Errorf("expected 'local name list exceeds' error, got: %v", err)
+	}
+}
+
+func TestParseBoundsGenericForNames(t *testing.T) {
+	// Arrange — a generic-for with > MaxListItems names.
+	var b strings.Builder
+	b.WriteString("for a")
+	for i := 0; i < lua.MaxListItems+50; i++ {
+		fmt.Fprintf(&b, ", n%d", i)
+	}
+	b.WriteString(" in pairs(t) do end")
+
+	// Act
+	_, err := lua.Parse("t.lua", []byte(b.String()))
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "generic-for name list exceeds") {
+		t.Errorf("expected 'generic-for name list exceeds' error, got: %v", err)
+	}
+}
+
+func TestParseExprListDropsNilValues(t *testing.T) {
+	// Arrange — `return 1, , 2` has an invalid second element that
+	// parseExpr reports and returns nil for. Before the parseExprList
+	// nil-guard, that nil would end up in ReturnStat.Values.
+	src := []byte("return 1, , 2")
+
+	// Act
+	chunk, _ := lua.Parse("t.lua", src)
+
+	// Assert — chunk is returned even on error; the return statement's
+	// values must contain no nil elements, and Walk must not panic.
+	if chunk == nil || chunk.Block == nil || chunk.Block.Return == nil {
+		t.Fatal("expected a partial chunk with a return statement")
+	}
+	for i, v := range chunk.Block.Return.Values {
+		if v == nil {
+			t.Errorf("Return.Values[%d] is nil — nil-drop regressed", i)
+		}
+	}
+	lua.Walk(&noopVisitor{}, chunk)
+}
+
+func TestParseBinaryExprNoNilOperand(t *testing.T) {
+	// Arrange — `1 + + 2` has an invalid second operand. Before
+	// parseExprPrec propagated nil upward, this would build a BinaryExpr
+	// with a nil Right (or Left in deeper nestings), and any tool
+	// asserting on operand.Pos() would panic.
+	src := []byte("local x = 1 + + 2")
+
+	// Act
+	chunk, _ := lua.Parse("t.lua", src)
+
+	// Assert — walker must not panic; if a BinaryExpr survives in the
+	// tree, its Left and Right must both be non-nil.
+	if chunk == nil {
+		t.Fatal("expected a partial chunk")
+	}
+	lua.Walk(binaryOperandChecker(func(b *lua.BinaryExpr) {
+		if b.Left == nil {
+			t.Errorf("BinaryExpr at %s has nil Left", b.Pos())
+		}
+		if b.Right == nil {
+			t.Errorf("BinaryExpr at %s has nil Right", b.Pos())
+		}
+	}), chunk)
+}
+
+// binaryOperandChecker is a Visitor that runs a check on every BinaryExpr
+// encountered. Adapter for BinaryExpr-focused invariant tests.
+type binaryOperandChecker func(*lua.BinaryExpr)
+
+func (c binaryOperandChecker) Visit(node lua.Node) lua.Visitor {
+	if b, ok := node.(*lua.BinaryExpr); ok {
+		c(b)
+	}
+	return c
+}
+
 // --- helpers --------------------------------------------------------------
 
 // typeName returns the concrete type of v in *lua.<Name> form, or "<nil>"

@@ -41,7 +41,7 @@ Pre-1.0. The public API is subject to change until `v1.0.0`.
 
 ## Requirements
 
-- Go 1.23 or later (see [`go.mod`](go.mod))
+- Go 1.27 or later (see [`go.mod`](go.mod))
 
 ## Installation
 

@@ -59,7 +59,7 @@ portion of a file even when a downstream edit broke a later line.
 
 ## Stack
 
-- Go 1.23
+- Go 1.27
 - Flat single-package layout at the module root (`package lua`).
 - Files: `lexer.go`, `parser.go`, `parser_stat.go`, `parser_expr.go`,
   `ast.go`, `visitor.go`, `token.go`, `errors.go`, `doc.go`.

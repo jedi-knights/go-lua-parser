@@ -58,7 +58,7 @@ For anything that isn't a bug fix or small helper, open an issue first so we can
 
 ### Local prerequisites
 
-Everything in [README.md § Development](README.md#development). Short version: Go 1.23+, plus `lcov` and `gcov2lcov` if you want to run the coverage targets locally.
+Everything in [README.md § Development](README.md#development). Short version: Go 1.27+, plus `lcov` and `gcov2lcov` if you want to run the coverage targets locally.
 
 Enable the pre-push hook once so lint failures surface locally, not in CI:
 

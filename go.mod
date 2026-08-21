@@ -1,3 +1,3 @@
 module github.com/jedi-knights/go-lua-parser
 
-go 1.23
+go 1.27

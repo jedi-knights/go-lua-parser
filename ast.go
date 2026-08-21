@@ -336,6 +336,7 @@ func (n *GotoStat) statementNode()        {}
 func (n *GotoStat) Pos() Position         { return n.Position }
 func (n *LabelStat) statementNode()       {}
 func (n *LabelStat) Pos() Position        { return n.Position }
+func (n *FuncName) Pos() Position         { return n.Position }
 
 func (n *NilExpr) expressionNode()        {}
 func (n *NilExpr) Pos() Position          { return n.Position }

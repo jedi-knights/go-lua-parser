@@ -1,0 +1,34 @@
+# go-semantic-release configuration for go-lua-parser.
+# Analyzes conventional commits since the last tag, computes the next
+# semantic version, writes CHANGELOG.md and VERSION, and pushes the git
+# tag back to main. Downstream consumers resolve versions via
+# `go get github.com/jedi-knights/go-lua-parser@vX.Y.Z`; no binary
+# distribution step is required for a library.
+
+release_mode: repo
+tag_format: "v{{.Version}}"
+
+branches:
+  - name: main
+    is_default: true
+  - name: beta
+    prerelease: true
+    channel: beta
+  - name: alpha
+    prerelease: true
+    channel: alpha
+
+prepare:
+  changelog_file: CHANGELOG.md
+  version_file: VERSION
+
+# semantic-release creates the tag and pushes CHANGELOG/VERSION; it does
+# not open a GitHub Release (no binaries to attach for a library).
+github:
+  create_release: false
+  owner: jedi-knights
+  repo: go-lua-parser
+
+git_author:
+  name: semantic-release-bot
+  email: semantic-release-bot@users.noreply.github.com

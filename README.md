@@ -1,5 +1,10 @@
 # go-lua-parser
 
+[![CI](https://github.com/jedi-knights/go-lua-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/jedi-knights/go-lua-parser/actions/workflows/ci.yml)
+[![Release](https://github.com/jedi-knights/go-lua-parser/actions/workflows/release.yml/badge.svg)](https://github.com/jedi-knights/go-lua-parser/actions/workflows/release.yml)
+[![Badge](https://github.com/jedi-knights/go-lua-parser/actions/workflows/badge.yaml/badge.svg)](https://github.com/jedi-knights/go-lua-parser/actions/workflows/badge.yaml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A Lua 5.1 lexer, parser, and AST for Go, with LuaJIT extensions accepted by
 default (`goto`/`::label::`, the `\z` string escape, and `//` integer
 division).

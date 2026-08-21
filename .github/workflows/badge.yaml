@@ -24,6 +24,7 @@ jobs:
   badge:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     permissions:
       contents: write
@@ -56,8 +57,10 @@ jobs:
         shell: bash
 
       - name: Convert coverage to LCOV
+        # gcov2lcov pinned to a specific version — `@latest` risks silent
+        # breakage on an upstream flag/output change. Bump deliberately.
         run: |
-          go install github.com/jandelgado/gcov2lcov@latest
+          go install github.com/jandelgado/gcov2lcov@v1.1.1
           mkdir -p coverage
           gcov2lcov -infile=coverage.out -outfile=coverage/lcov.info
         shell: bash
@@ -109,14 +112,15 @@ jobs:
           git diff --quiet README.md || (git add README.md && git commit -m "chore: update coverage badge [skip ci]" && git push)
         shell: bash
 
+      # Third-party actions pinned by commit SHA (rules/owasp-top-10.md A03).
       - name: Upload Pages artifact
         if: success()
         id: upload-artifact
-        uses: actions/upload-pages-artifact@v5.0.0
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: htmlcov/
 
       - name: Deploy to GitHub Pages
         if: success() && steps.upload-artifact.outcome == 'success'
         id: deploy
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5

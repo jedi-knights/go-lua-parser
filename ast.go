@@ -26,7 +26,10 @@ type Chunk struct {
 	Block    *Block
 }
 
-// Pos returns the start of the file.
+// Pos returns the synthetic start-of-file position (line 1, column 1).
+// Offset is always zero regardless of leading whitespace or BOM — for the
+// byte offset of the first real token, use chunk.Block.Pos() or the first
+// statement's Pos().
 func (c *Chunk) Pos() Position {
 	return Position{Filename: c.Filename, Line: 1, Column: 1}
 }

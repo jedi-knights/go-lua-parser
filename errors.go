@@ -20,8 +20,16 @@ func (e *SyntaxError) Error() string {
 // It satisfies the error interface so callers can return it directly.
 type SyntaxErrors []*SyntaxError
 
-// Error joins the individual error messages with newlines.
+// Error joins the individual error messages with newlines. An empty
+// SyntaxErrors is not a valid error value (Parse's finalize() returns
+// untyped nil in that case, never an empty slice) — but if a caller
+// constructs one manually and asks for its message, return a placeholder
+// rather than the empty string that would violate the error interface's
+// non-empty contract.
 func (es SyntaxErrors) Error() string {
+	if len(es) == 0 {
+		return "<no syntax errors>"
+	}
 	msgs := make([]string, len(es))
 	for i, e := range es {
 		msgs[i] = e.Error()

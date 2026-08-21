@@ -205,9 +205,11 @@ Three workflows, chained via `workflow_run`:
 
 ## Contributing
 
-Issues and pull requests welcome at <https://github.com/jedi-knights/go-lua-parser>.
+Issues and pull requests welcome at <https://github.com/jedi-knights/go-lua-parser>. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide — commit format, PR expectations, testing bar, code style.
 
-- Use [Conventional Commits](https://www.conventionalcommits.org/) — `feat` and `fix` drive semver via `semantic-release`; other types are no-ops for versioning.
+Quick summary:
+
+- [Conventional Commits](https://www.conventionalcommits.org/) — `feat` and `fix` drive semver via `semantic-release`; other types are no-ops for versioning.
 - Coverage floor is 84% (LCOV line coverage). New code should ship tests; CI blocks a regression.
 - Cyclomatic complexity is capped at 14 per function (see `.golangci.yml`).
 - Main is ruleset-protected; direct pushes are blocked. Open a PR — 0 approvals required, but the PR flow is mandatory.

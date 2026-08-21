@@ -226,6 +226,7 @@ return t
 		"*lua.RepeatStat",
 		"*lua.WhileStat",
 		"*lua.IfStat",
+		"*lua.ElseIf",
 		"*lua.BinaryExpr",
 		"*lua.UnaryExpr",
 		"*lua.IndexExpr",

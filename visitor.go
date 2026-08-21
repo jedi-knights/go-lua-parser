@@ -55,6 +55,10 @@ func walkChildren(v Visitor, node Node) {
 			Walk(v, n.Method)
 		}
 		return
+	case *ElseIf:
+		Walk(v, n.Cond)
+		Walk(v, n.Body)
+		return
 	}
 	if stmt, ok := node.(Statement); ok {
 		walkStatementChildren(v, stmt)
@@ -140,8 +144,10 @@ func walkIfStat(v Visitor, n *IfStat) {
 	Walk(v, n.Cond)
 	Walk(v, n.Then)
 	for _, ei := range n.ElseIfs {
-		Walk(v, ei.Cond)
-		Walk(v, ei.Body)
+		// Walk *ElseIf as a node (see the *ElseIf case in walkChildren)
+		// so visitors can observe the clause boundary and its position,
+		// not just its cond and body fields in the flat stream.
+		Walk(v, ei)
 	}
 	if n.Else != nil {
 		Walk(v, n.Else)

@@ -29,6 +29,11 @@ type Parser struct {
 // if any, is a SyntaxErrors describing every issue found by the lexer and
 // parser combined. The Chunk is always returned (possibly partial) so that
 // callers can produce diagnostics without a second parse.
+//
+// Parse is safe for concurrent use — each call constructs a fresh Lexer
+// and Parser and shares no mutable state. The returned Chunk is
+// immutable after Parse returns and is safe to walk from multiple
+// goroutines.
 func Parse(filename string, src []byte) (*Chunk, error) {
 	p := newParser(filename, src)
 	block := p.parseBlock()

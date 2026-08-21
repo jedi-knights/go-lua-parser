@@ -1,0 +1,46 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - gocyclo
+    - ineffassign
+    - misspell
+    - revive
+
+  settings:
+    gocyclo:
+      # Flag functions with cyclomatic complexity > 14.
+      # min-complexity is the lowest value that gets reported, so 15 enforces ≤ 14.
+      min-complexity: 15
+
+    revive:
+      rules:
+        - name: exported
+          severity: warning
+
+  exclusions:
+    rules:
+      # Visitor traversal is a big type switch by design; splitting it into
+      # per-node methods trades clarity for a metric win with no real gain.
+      - linters: [gocyclo]
+        path: "visitor\\.go"
+
+      # AST interface-satisfaction: every node has an exported Pos() method
+      # that trivially returns its Position field. Documenting ~30 identical
+      # one-line stubs adds noise; the Node interface itself is documented.
+      - linters: [revive]
+        path: "ast\\.go"
+        text: "exported method .+\\.Pos should have comment"
+
+      # Test files: relax errcheck and complexity — test helpers often chain
+      # calls and assertions without explicit error propagation.
+      - linters: [errcheck, gocyclo]
+        path: "_test\\.go"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

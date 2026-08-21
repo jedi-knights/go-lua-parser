@@ -22,11 +22,18 @@ LCOV_FILE             := $(LCOV_DIR)/lcov.info
 HTML_DIR              := htmlcov
 TEST_RESULTS_JSON     := test-results.json
 
-# Minimum acceptable line coverage. CI passes this via
-# `make coverage-check COVERAGE_THRESHOLD=<n>` to gate merges.
+# Minimum acceptable line coverage. This Makefile is the single source of
+# truth for the CI floor — ci.yml invokes `make coverage-check` without an
+# override, so bumping the threshold is a one-line change here that
+# propagates to CI on the next run.
 COVERAGE_THRESHOLD    ?= 84
 
-.PHONY: help lint test test-ci test-coverage test-html coverage-check \
+# Shell fragment that prints the LCOV line-coverage percentage as a bare
+# number (e.g. "84.0"). Used by both test-coverage and coverage-check;
+# extracted here so drift between the two is impossible.
+COVERAGE_PCT_CMD = $(LCOV) --summary $(LCOV_FILE) 2>&1 | grep -i '^\s*lines' | grep -oE '[0-9]+\.[0-9]+' | head -1
+
+.PHONY: help lint fmt test test-ci test-coverage test-html coverage-check \
         vet verify build clean install-ci-deps \
         require-golangci-lint require-gcov2lcov require-lcov require-genhtml
 
@@ -36,6 +43,7 @@ help:
 	@echo ""
 	@echo "Quality:"
 	@echo "  make lint            - Run go vet + golangci-lint (matches CI)"
+	@echo "  make fmt             - Format sources (gofmt + goimports via golangci-lint fmt)"
 	@echo "  make vet             - Run go vet only"
 	@echo "  make verify          - Verify go.mod checksums"
 	@echo ""
@@ -60,6 +68,11 @@ help:
 # than one merged report.
 lint: vet require-golangci-lint
 	@$(GOLANGCI_LINT) run ./...
+
+# Format sources via golangci-lint's fmt subcommand — applies the
+# formatters enabled in .golangci.yml (gofmt + goimports).
+fmt: require-golangci-lint
+	@$(GOLANGCI_LINT) fmt ./...
 
 vet:
 	@$(GO) vet ./...
@@ -91,14 +104,14 @@ $(LCOV_FILE): $(COVERAGE_OUT) | require-gcov2lcov
 
 # Compute and print the LCOV line coverage — same metric CI gates on.
 test-coverage: $(LCOV_FILE) | require-lcov
-	@COVERAGE=$$($(LCOV) --summary $(LCOV_FILE) 2>&1 | grep -i '^\s*lines' | grep -oE '[0-9]+\.[0-9]+' | head -1); \
+	@COVERAGE=$$($(COVERAGE_PCT_CMD)); \
 		echo "Line coverage: $${COVERAGE}%"
 
 # Gate: fail if coverage < COVERAGE_THRESHOLD. CI invokes this after
 # test-ci to enforce the merge floor; developers can run it locally to
 # preview whether their branch will pass.
 coverage-check: $(LCOV_FILE) | require-lcov
-	@COVERAGE=$$($(LCOV) --summary $(LCOV_FILE) 2>&1 | grep -i '^\s*lines' | grep -oE '[0-9]+\.[0-9]+' | head -1); \
+	@COVERAGE=$$($(COVERAGE_PCT_CMD)); \
 		echo "Line coverage: $${COVERAGE}%"; \
 		if awk "BEGIN { exit !($${COVERAGE} < $(COVERAGE_THRESHOLD)) }"; then \
 			echo "::error::Coverage $${COVERAGE}% is below the $(COVERAGE_THRESHOLD)% threshold"; \
@@ -111,11 +124,21 @@ test-html: $(LCOV_FILE) | require-genhtml
 	@$(GENHTML) $(LCOV_FILE) -o $(HTML_DIR)/ --quiet --ignore-errors source
 	@echo "Report: $(HTML_DIR)/index.html"
 
-# Install the CI-only external tools (lcov + gcov2lcov). Meant for the
-# GitHub Actions runner; on a dev machine, install once via brew/apt.
+# Install the CI-only external tools (lcov + gcov2lcov). Written for the
+# GitHub Actions Ubuntu runner. On macOS, use `brew install lcov` and
+# `go install github.com/jandelgado/gcov2lcov@v1.1.1` directly — apt-get
+# would not resolve. gcov2lcov pinned by version so a Bad upstream release
+# doesn't silently break the badge/coverage pipeline.
 install-ci-deps:
+	@if [ "$$(uname -s)" != "Linux" ]; then \
+		echo "Error: install-ci-deps is Linux-only (uses apt-get)."; \
+		echo "  On macOS install manually:"; \
+		echo "    brew install lcov"; \
+		echo "    go install github.com/jandelgado/gcov2lcov@v1.1.1"; \
+		exit 1; \
+	fi
 	@sudo apt-get install -y --quiet lcov
-	@$(GO) install github.com/jandelgado/gcov2lcov@latest
+	@$(GO) install github.com/jandelgado/gcov2lcov@v1.1.1
 
 # Remove everything the toolchain produces locally. Does not touch user
 # state (.env, .claude/, editor swap files) — those live in .gitignore

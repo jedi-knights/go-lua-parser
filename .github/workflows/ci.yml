@@ -86,9 +86,10 @@ jobs:
 
       - name: Check coverage threshold
         # Delegates to the same target developers can run locally. The
-        # threshold lives here (single source of truth for CI) so bumping
-        # it is a one-line workflow change.
-        run: make coverage-check COVERAGE_THRESHOLD=84
+        # threshold value lives in the Makefile (COVERAGE_THRESHOLD) —
+        # single source of truth — so bumping is a one-line Makefile
+        # change that CI picks up on the next run.
+        run: make coverage-check
 
       # Publish only from one matrix entry — otherwise both runs would
       # try to create the same "Test Results" check and one would fail
